@@ -1,0 +1,63 @@
+Iată structura exactă a proiectului până în acest moment, formulată clar pentru a putea împărți sarcinile cu colegul tău de echipă.
+
+### 1. Ce este implementat până acum (Core MVP)
+
+Proiectul **EcoTwin 3D SCADA** este un Digital Twin dezvoltat exclusiv cu tehnologii web standard (Vanilla HTML, CSS, JS), fără librării externe greoaie (precum Three.js sau React), pentru a rula ultra-rapid în browser.
+
+**A. Motorul Grafic (Vizualizarea 3D)**
+
+* **CSS 3D Engine:** Clădirea este construită folosind manipulări de perspectivă (`transform-style: preserve-3d`). Fiecare etaj este o cutie cu podea (tip *blueprint/grilă*), tavan, perete frontal (panou de control) și perete lateral (tubulatură HVAC).
+* **UI/UX:** Design "Glassmorphism" cu tematică dark/sci-fi (neon cyan). Panouri de control organizate în insule plutitoare.
+* **Feedback vizual dinamic:** Grilele de ventilație (pe peretele din dreapta al fiecărui etaj) își schimbă culoarea și animația în funcție de starea sistemului: Roșu (Încălzește), Albastru (Răcește), Galben intermitent (Menține).
+
+**B. Motorul de Fizică și Simulare (JavaScript)**
+
+* **Time-Scaling (Micro-stepping):** Timpul poate fi accelerat (1x până la 120x). Pentru a preveni erorile de fizică la viteze mari, bucla calculează termodinamica în pași mici (for loop interior).
+* **Termodinamică de bază:** Fiecare etaj pierde temperatură spre exterior pe baza *Coeficientului de Pierdere Termică* și a diferenței față de *Temperatura Exterioară*.
+* **Termostat cu Hysteresis:** Algoritmul HVAC are o zonă de confort de $\pm 1^\circ\text{C}$. Nu pornește și nu se oprește haotic, economisind energie simulată.
+* **Calcul Consum (Energie):** Consumul în kW este scalat automat în funcție de *Suprafața etajului* și este integrat în timp pentru a afișa consumul total în kWh.
+
+---
+
+### 2. Cum este structurat codul (Pentru colegul tău)
+
+* **`index.html`:** Conține layout-ul static Flexbox (bara de sus, panoul stâng cu `.building-wrapper` și panoul drept cu controalele).
+* **`style.css`:** Conține variabilele de sticlă (`.glass-panel`), animațiile `@keyframes` pentru ventilație și logica de poziționare 3D absolută (fețele cubului).
+* **`script.js`:** Conține 3 funcții majore:
+* `generateBuilding()`: Desenează etajele în DOM pe baza numărului cerut.
+* `simulationTick()`: Inima aplicației (rulează la fiecare 100ms) – calculează temperatura, consumul și starea HVAC.
+* Event Listeners: Preluarea datelor din input-uri.
+
+
+
+---
+
+### 3. Ce mai trebuie adăugat (Task-uri de împărțit)
+
+Pentru a finaliza proiectul de hackathon, iată ce lipsește și poate fi preluat în paralel:
+
+**Task 1: Fizica Avansată (Transferul termic între etaje)**
+
+* *Acum:* Etajele sunt izolate termic între ele.
+* *De adăugat în JS:* Aerul cald se ridică. Etajul 1 trebuie să transfere un mic procent din căldura sa Etajului 2, scăzând astfel nevoia de încălzire a etajelor superioare.
+
+**Task 2: Variabila „Ocupanți / Oameni” (Factor de mediu)**
+
+* *De adăugat în HTML/JS:* Un slider sau input per etaj pentru „Număr persoane”.
+* *Logica:* Oamenii generează căldură (cresc temperatura etajului natural) dar strică calitatea aerului (cresc nivelul de CO2). Dacă CO2 crește, HVAC-ul trebuie să consume energie pentru a ventila, chiar dacă temperatura e bună.
+
+**Task 3: Implementarea reală a Modului "Auto (AI)"**
+
+* *Acum:* Funcția Auto doar setează niște temperaturi hardcodate (21, 21.5, 22).
+* *De adăugat:* Algoritmul local trebuie să jongleze cu transferul termic menționat la Task 1. Să lase etajul de jos un pic mai cald ca să încălzească natural etajul de sus, minimizând energia totală afișată pe ecran. (Asta va câștiga secțiunea de Eficiență/Business).
+
+**Task 4: Modul de Urgență (Emergency / Fire Protocol)**
+
+* *De adăugat:* Un buton mare roșu de „Simulare Incendiu”.
+* *Logica:* Când e apăsat, oprește imediat simularea termodinamică, taie forțat toată ventilația pe toate etajele (pentru a nu alimenta focul cu oxigen), colorează totul în roșu intermitent și afișează un log de „Uși Deblocate pentru Evacuare”. (Pentru secțiunea Cybersecurity/Siguranță IoT).
+
+**Task 5: Conectarea unui API de LLM (Opțional, de efect)**
+
+* Preluarea datelor (JSON) cu starea curentă a clădirii și trimiterea lor către un AI real (ex: Gemini API / OpenAI API) pentru a genera o „Analiză de eficiență” sub formă de text scurt, direct în interfață.
+
+Puteți alege cine face UI-ul/Butoanele noi (Task 2, 4) și cine se ocupă de matematica din JavaScript (Task 1, 3).
