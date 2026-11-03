@@ -12,7 +12,12 @@
     <header class="top-bar glass-panel">
         <div class="logo">🏢 EcoTwin 3D SCADA</div>
         <div class="time-controls">
-            <button id="time-speed-btn" class="glass-btn highlight">Viteză: 1x</button>
+            <div class="speed-group">
+                <button id="btn-speed-down" class="glass-btn icon-btn" title="Mai încet" disabled>⏪</button>
+                <span id="speed-display">Viteză: 1x</span>
+                <button id="btn-speed-up" class="glass-btn icon-btn" title="Mai rapid">⏩</button>
+            </div>
+            
             <button id="btn-start" class="glass-btn">▶ Start Simulare</button>
             <button id="btn-reset" class="glass-btn danger">Reset & Pauză</button>
         </div>

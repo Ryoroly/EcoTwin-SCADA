@@ -2,146 +2,121 @@
 body { height: 100vh; display: flex; flex-direction: column; color: #fff; overflow: hidden; }
 .bg-gradient { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: linear-gradient(135deg, #0b111e 0%, #152b45 50%, #094048 100%); z-index: -1; }
 
-/* Panouri de sticlă / Dashboard */
 .glass-panel { background: rgba(15, 25, 40, 0.6); backdrop-filter: blur(12px); border: 1px solid rgba(0, 255, 204, 0.2); box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5); }
 .island { border-radius: 12px; padding: 20px; margin-bottom: 15px; }
 .top-bar { height: 70px; display: flex; justify-content: space-between; align-items: center; padding: 0 30px; border-bottom: 1px solid rgba(0,255,204,0.3); }
-
-/* Butoane & Input-uri */
 .glass-btn { padding: 10px 18px; background: rgba(0, 255, 204, 0.1); color: white; border: 1px solid rgba(0, 255, 204, 0.4); border-radius: 6px; cursor: pointer; transition: all 0.2s; font-weight: 600; }
 .glass-btn:hover { background: rgba(0, 255, 204, 0.25); box-shadow: 0 0 12px rgba(0, 255, 204, 0.6); }
 .glass-btn.danger { background: rgba(255, 70, 70, 0.15); border-color: rgba(255, 70, 70, 0.5); }
-.glass-btn.danger:hover { background: rgba(255, 70, 70, 0.3); box-shadow: 0 0 12px rgba(255, 70, 70, 0.6); }
 .action-btn { width: 100%; margin-top: 10px; background: rgba(52, 152, 219, 0.3); }
-
-.glass-input { background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 8px; border-radius: 4px; width: 100%; transition: border 0.3s; }
-.glass-input:focus { outline: none; border-color: #00ffcc; }
-.glass-input:read-only { opacity: 0.7; background: rgba(0,0,0,0.6); cursor: not-allowed; }
+.glass-input { background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 6px; border-radius: 4px; width: 100%; }
 .glass-input option { background: #0d2743; }
 
-/* Layout Grid */
-/* Layout Grid */
-.container { 
-    display: flex; 
-    flex: 1; 
-    padding: 20px; 
-    gap: 20px; 
-    min-height: 0; /* FIX: Obligă containerul să respecte 100vh al paginii */
-    overflow: hidden;
+
+.time-controls { display: flex; gap: 15px; align-items: center; }
+.speed-group { 
+    display: flex; align-items: center; gap: 5px; 
+    background: rgba(0, 0, 0, 0.4); border-radius: 8px; padding: 4px;
+    border: 1px solid rgba(0, 255, 204, 0.3);
 }
-.left-panel { 
-    flex: 1.4; 
-    display: flex; 
-    flex-direction: column; 
-    min-height: 0; 
-    overflow-y: auto; 
-    overflow-x: hidden;
-}
-/* Stilizare bară scroll stânga */
+.icon-btn { padding: 6px 10px; font-size: 1rem; background: transparent; border: none; }
+.icon-btn:hover:not(:disabled) { background: rgba(0, 255, 204, 0.2); }
+.icon-btn:disabled { opacity: 0.3; cursor: not-allowed; border-color: transparent; }
+#speed-display { font-weight: bold; color: #00ffcc; width: 85px; text-align: center; }
+
+.container { display: flex; flex: 1; padding: 20px; gap: 20px; min-height: 0; overflow: hidden; }
+.left-panel { flex: 1.4; display: flex; flex-direction: column; min-height: 0; overflow-y: auto; overflow-x: hidden; }
 .left-panel::-webkit-scrollbar { width: 6px; }
 .left-panel::-webkit-scrollbar-thumb { background: rgba(0, 255, 204, 0.4); border-radius: 4px; }
-.left-panel::-webkit-scrollbar-track { background: transparent; }
-.right-panel { 
-    flex: 1; 
-    display: flex; 
-    flex-direction: column; 
-    overflow-y: auto; /* Activează scroll-ul vertical */
-    padding-right: 10px; 
-    min-height: 0; /* FIX: Permite conținutului să facă scroll în interior */
-}
+.right-panel { flex: 1; display: flex; flex-direction: column; overflow-y: auto; padding-right: 10px; min-height: 0; }
 .right-panel::-webkit-scrollbar { width: 6px; }
 .right-panel::-webkit-scrollbar-thumb { background: rgba(0, 255, 204, 0.4); border-radius: 4px; }
-.right-panel::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.2); }
-
 .control-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
 
 
-/* === NOUA CLĂDIRE 3D === */
-/* === NOUA CLĂDIRE 3D === */
-#building-wrapper { 
-    min-height: 100%; 
-    perspective: 2200px; 
-    display: flex; 
-    /* Aliniază clădirea sus, nu pe centru */
-    align-items: flex-start; 
-    justify-content: center; 
-    /* Lasă un spațiu clar sub bara de sus */
-    padding-top: 100px; 
-    padding-bottom: 100px;
-}
-
-#building-container { 
-    position: relative; 
-    width: 280px; 
-    height: 280px; 
-    transform-style: preserve-3d; 
-    /* Nu mai punem transform aici, se ocupă JS-ul de el */
-}
-
-/* ETAJUL - Geometrie High-Tech */
+/* === CLĂDIRE 3D GIGANT (Bază 350px, Înălțime 200px) === */
+#building-wrapper { min-height: 100%; perspective: 3000px; display: flex; align-items: flex-start; justify-content: center; padding-top: 100px; padding-bottom: 200px; }
+#building-container { position: relative; width: 350px; height: 350px; transform-style: preserve-3d; }
 .floor-level { position: absolute; width: 100%; height: 100%; transform-style: preserve-3d; transition: transform 0.5s ease; }
 
-/* Podeaua - Blueprint Grid luminos */
+/* Podeaua și Tavanul (350x350) */
 .face-base { 
     position: absolute; width: 100%; height: 100%; 
     background-color: rgba(5, 15, 25, 0.7);
-    background-image: 
-        linear-gradient(rgba(0, 255, 204, 0.3) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(0, 255, 204, 0.3) 1px, transparent 1px);
-    background-size: 40px 40px;
-    border: 2px solid rgba(0, 255, 204, 0.8);
-    box-shadow: inset 0 0 40px rgba(0, 255, 204, 0.2);
+    background-image: linear-gradient(rgba(0, 255, 204, 0.3) 1px, transparent 1px), linear-gradient(90deg, rgba(0, 255, 204, 0.3) 1px, transparent 1px);
+    background-size: 50px 50px; border: 2px solid rgba(0, 255, 204, 0.8);
+    transition: box-shadow 0.5s ease, background-color 0.5s ease;
 }
-
-/* Tavanul - sticlă semi-transparentă */
-.face-top { 
-    position: absolute; width: 100%; height: 100%; 
-    background: rgba(0, 150, 255, 0.05); border: 1px solid rgba(0, 255, 204, 0.2); 
-    transform: translateZ(90px); pointer-events: none; 
+.face-base.lights-on {
+    background-color: rgba(255, 235, 150, 0.15);
+    box-shadow: inset 0 0 80px rgba(255, 235, 100, 0.4), 0 0 50px rgba(255, 235, 100, 0.2);
 }
+.face-top { position: absolute; width: 100%; height: 100%; background: rgba(0, 150, 255, 0.05); border: 1px solid rgba(0, 255, 204, 0.2); transform: translateZ(200px); pointer-events: none; }
 
-/* Peretele Frontal - Panou Control Holografic */
+/* Peretele Frontal (Lățime 350, Înălțime 200) */
 .face-front { 
-    position: absolute; bottom: 0; left: 0; width: 100%; height: 90px; 
+    position: absolute; bottom: 0; left: 0; width: 100%; height: 200px; 
     transform-origin: bottom; transform: rotateX(-90deg); 
-    background: linear-gradient(180deg, rgba(10,30,50,0.6) 0%, rgba(5,15,25,0.9) 100%);
+    background: linear-gradient(180deg, rgba(10,30,50,0.7) 0%, rgba(5,15,25,0.95) 100%);
     border: 1px solid rgba(0, 255, 204, 0.5); border-top: 2px solid #00ffcc;
-    display: flex; flex-direction: column; align-items: center; justify-content: center; 
+    display: flex; flex-direction: column; align-items: center; justify-content: space-evenly; 
+    padding: 10px 15px;
 }
 
-/* Peretele Lateral (Dreapta) - Găzduiește Ventilația */
+/* Peretele Lateral (Lățime 200, Înălțime 350) */
 .face-right { 
-    position: absolute; top: 0; right: 0; width: 90px; height: 100%; 
+    position: absolute; top: 0; right: 0; width: 200px; height: 350px; 
     transform-origin: right; transform: rotateY(90deg); 
     background: linear-gradient(180deg, rgba(10,30,50,0.7) 0%, rgba(5,15,25,0.95) 100%);
     border: 1px solid rgba(0, 255, 204, 0.5); border-top: 2px solid #00ffcc;
     display: flex; align-items: center; justify-content: center; 
 }
 
-/* Elemente Text UI perete */
-.f-title { font-weight: 700; font-size: 0.9rem; color: #00ffcc; text-transform: uppercase; letter-spacing: 2px; }
-.f-temp { font-size: 1.6rem; margin: 2px 0; font-weight: bold; text-shadow: 0 0 10px rgba(0, 255, 204, 0.8); }
-.f-target { display: flex; align-items: center; gap: 5px; font-size: 0.85rem; color: #aaa; }
-.f-target input { width: 60px; text-align: center; font-weight: bold; padding: 2px; border: 1px solid #00ffcc; background: rgba(0,0,0,0.8); color: white; border-radius: 3px; }
+/* Texte UI Etaj - Ajustate pentru spațiul mai mare */
+.f-header { display: flex; justify-content: space-between; width: 100%; align-items: center; }
+.f-title { font-weight: 700; font-size: 1.1rem; color: #00ffcc; text-transform: uppercase; }
+.f-co2 { font-size: 0.9rem; background: rgba(0,0,0,0.5); padding: 4px 8px; border-radius: 4px; border: 1px solid #777; transition: all 0.3s; }
+.f-co2.warning { color: #ff4757; border-color: #ff4757; box-shadow: 0 0 10px rgba(255, 71, 87, 0.5); }
+.f-temp { font-size: 2rem; font-weight: bold; text-shadow: 0 0 10px rgba(0, 255, 204, 0.8); margin: 10px 0; }
+.f-target { font-size: 0.85rem; color: #aaa; }
+.f-target input { width: 50px; text-align: center; font-weight: bold; padding: 2px; border: 1px solid #00ffcc; background: rgba(0,0,0,0.8); color: white; border-radius: 3px; }
 
-/* Ventilația - Design Integrat în Perete */
-.vent-grill { 
-    width: 60px; height: 160px; /* Alungit pe peretele lateral */
-    border: 2px solid #333; background: #000; border-radius: 8px; 
-    position: relative; overflow: hidden; box-shadow: inset 0 0 20px #000;
-}
+/* Controale Oameni */
+.f-people { display: flex; width: 100%; align-items: center; gap: 10px; font-size: 0.9rem; background: rgba(255,255,255,0.05); padding: 8px; border-radius: 4px;}
+.f-people input[type="range"] { flex: 1; accent-color: #f39c12; }
+.f-people input:disabled { opacity: 0.3; }
+
+/* Ventilația HVAC Principală - Mărită */
+.vent-grill { width: 120px; height: 240px; border: 2px solid #333; background: #000; border-radius: 8px; position: relative; overflow: hidden; box-shadow: inset 0 0 20px #000; }
 .vent-air { position: absolute; bottom: -100%; left: 0; width: 100%; height: 200%; opacity: 0.9; transition: opacity 0.3s; }
 
-/* Animații HVAC */
+/* Stări HVAC */
 .vent-air.heating { background: linear-gradient(to top, #ff3300 0%, transparent 100%); animation: flowAir 0.5s linear infinite; box-shadow: 0 0 20px #ff3300; }
 .vent-air.cooling { background: linear-gradient(to bottom, #00ccff 0%, transparent 100%); animation: flowAir 0.5s linear infinite reverse; box-shadow: 0 0 20px #00ccff; }
-.vent-air.maintaining { background: linear-gradient(to top, #ffcc00 0%, transparent 100%); animation: flowPulse 2.5s ease-in-out infinite; opacity: 0.3; }
+.vent-air.maintaining { background: linear-gradient(to top, #ffcc00 0%, transparent 100%); animation: flowPulse 2.5s ease-in-out infinite; opacity: 0.2; }
+.vent-air.ventilating { background: linear-gradient(to top, #9b59b6 0%, transparent 100%); animation: flowAir 0.3s linear infinite; box-shadow: 0 0 20px #9b59b6; opacity: 0.8; }
 
 @keyframes flowAir { 0% { transform: translateY(0); } 100% { transform: translateY(-50%); } }
-@keyframes flowPulse { 0% { opacity: 0.15; } 50% { opacity: 0.4; } 100% { opacity: 0.15; } }
+@keyframes flowPulse { 0% { opacity: 0.1; } 50% { opacity: 0.3; } 100% { opacity: 0.1; } }
+
+/* Ventilatorul local de evacuare mutat mai frumos */
+.local-exhaust { position: absolute; bottom: 15px; right: 15px; width: 40px; height: 40px; border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 4px; background: rgba(0, 0, 0, 0.6); display: flex; align-items: center; justify-content: center; box-shadow: inset 0 0 5px rgba(0,0,0,0.8); }
+.exhaust-fan { width: 28px; height: 28px; border-radius: 50%; border: 2px dashed #555; transition: all 0.3s; }
+.exhaust-fan.active { border-color: #f1c40f; box-shadow: 0 0 10px rgba(241, 196, 15, 0.8), inset 0 0 5px rgba(241, 196, 15, 0.5); animation: spinFan 1s linear infinite; }
+.exhaust-fan.active.fast { animation: spinFan 0.3s linear infinite; }
+@keyframes spinFan { 100% { transform: rotate(360deg); } }
 
 
-/* === FEREASTRA MODAL (ISTORIC) === */
+
+
+
+
+
+
+
+
+
+/* === FEREASTRA MODAL (ISTORIC & COMPARAȚII) === */
 .modal {
     position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
     background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(8px);
@@ -153,6 +128,7 @@ body { height: 100vh; display: flex; flex-direction: column; color: #fff; overfl
 .modal-content {
     width: 80%; max-width: 900px; max-height: 80vh; overflow-y: auto;
     padding: 30px; position: relative; border-top: 3px solid #9b59b6;
+    background: rgba(15, 25, 40, 0.95); /* Fundal închis pentru a nu se vedea clădirea prin el */
 }
 
 .close-btn {
@@ -167,8 +143,7 @@ body { height: 100vh; display: flex; flex-direction: column; color: #fff; overfl
 #history-table th { color: #9b59b6; font-weight: bold; text-transform: uppercase; font-size: 0.9rem; }
 #history-table tr:hover { background: rgba(0, 255, 204, 0.05); }
 
-
-/* Stil pentru butonul de ștergere individuală */
+/* Stil pentru butonul de ștergere individuală (Coș de gunoi) */
 .btn-delete-row {
     background: transparent; 
     border: none; 
@@ -180,4 +155,44 @@ body { height: 100vh; display: flex; flex-direction: column; color: #fff; overfl
 .btn-delete-row:hover { 
     transform: scale(1.2); 
     filter: grayscale(0);
+}
+
+/* === VENTILATOR LOCAL DE EVACUARE (CO2) === */
+.local-exhaust {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    width: 30px;
+    height: 30px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: inset 0 0 5px rgba(0,0,0,0.8);
+}
+
+.exhaust-fan {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: 2px dashed #555;
+    transition: all 0.3s;
+}
+
+/* Când este activ (extrage CO2) */
+.exhaust-fan.active {
+    border-color: #f1c40f; /* Galben */
+    box-shadow: 0 0 10px rgba(241, 196, 15, 0.8), inset 0 0 5px rgba(241, 196, 15, 0.5);
+    animation: spinFan 1s linear infinite;
+}
+
+/* Viteză crescută dacă sunt mulți oameni */
+.exhaust-fan.active.fast {
+    animation: spinFan 0.3s linear infinite;
+}
+
+@keyframes spinFan {
+    100% { transform: rotate(360deg); }
 }
