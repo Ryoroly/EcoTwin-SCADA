@@ -61,3 +61,165 @@ Pentru a finaliza proiectul de hackathon, iată ce lipsește și poate fi prelua
 * Preluarea datelor (JSON) cu starea curentă a clădirii și trimiterea lor către un AI real (ex: Gemini API / OpenAI API) pentru a genera o „Analiză de eficiență” sub formă de text scurt, direct în interfață.
 
 Puteți alege cine face UI-ul/Butoanele noi (Task 2, 4) și cine se ocupă de matematica din JavaScript (Task 1, 3).
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Salut! Am citit cu atenție toate cele 3 fișiere. Îți dau un audit complet pe logică + o listă structurată cu ce lipsește, **fără nicio modificare de cod**, ca să puteți decide împreună cu colegul ce prioritizați.
+
+---
+
+## 🔍 A. Ce funcționează corect în logica actuală
+
+Ca să știi pe ce poți construi fără să te întorci:
+
+✅ **Motorul 3D (CSS)** – geometria e corectă. `face-right` cu `transform-origin: right; rotateY(90deg)` ridică peretele pe muchia dreaptă a podelei, iar `face-front` cu `rotateX(-90deg)` și `transform-origin: bottom` ridică peretele frontal. Stacking-ul etajelor cu `translateZ(i * 90)` e aliniat cu înălțimea pereților (90px) – deci tavanele și podelele se suprapun perfect între etaje.
+
+✅ **Termodinamica de bază** – `currentTemp += (extTemp - currentTemp) * thermalLossCoeff` este legea lui Newton a răcirii, aplicată corect per minut. La viteză 120x, ciclul interior `for (step < timeMultiplier)` previne „explozia” fizicii – bine gândit.
+
+✅ **Termostatul cu histerezis** – zona moartă de ±1°C e corectă. Tranziția `maintaining → heating/cooling` se face doar la depășirea pragului, ceea ce simulează realist un termostat și previne pornirile/opririle haotice.
+
+✅ **Integrarea energiei** – `tickEnergy += powerUsed` per minut, apoi `/60` la final → conversie corectă kW·min → kWh. Matematic e curat.
+
+✅ **Micro-stepping corect** – indiferent de `timeMultiplier` (1x până la 120x), fizica e calculată la aceeași rezoluție de 1 minut virtual. Consumul final va fi identic indiferent de viteză, doar „cât de repede vezi rezultatul” se schimbă. Excelent.
+
+✅ **Time-scaling + persistarea `simulatedMinutes`** – timpul virtual curge corect, iar `formatTime()` convertește bine în zile/ore.
+
+---
+
+## ⚠️ B. Probleme / inconsistențe de logică de corectat (înainte de a adăuga feature-uri noi)
+
+Astea sunt lucruri care **deja există** dar se comportă ciudat sau te vor încurca la demo:
+
+**B1. Butonul „Reset” nu oprește simularea.**
+`isRunning` rămâne `true`. Deci după Reset, `simulatedMinutes` pornește din nou de la 0, DAR ceasul continuă să tickeze imediat. Pentru un demo la hackathon e derutant – vrei ca Reset-ul să aducă UI-ul în stare „pauză, totul la 0, gata pentru scenariu nou”. Recomand: Reset să pună `isRunning = false` și să reseteze și textul butonului Start.
+
+**B2. „Aplică & Reconstruiește” este înșelător.**
+De fapt, **`inputArea` și `inputThermal` sunt citite în fiecare tick** – deci se aplică *live*, fără să apeși butonul. Doar `inputFloors` și `inputInitTemp` necesită apăsarea butonului. Asta e inconsistent și confuză pentru utilizator. Ar trebui fie:
+- (a) toate să fie live, fără buton, fie
+- (b) toate să aștepte butonul, iar slider-ul să fie doar „setat, nu aplicat”.
+
+**B3. Lipsesc validările pe input-uri.**
+`parseFloat(inputExtTemp.value)` returnează `NaN` dacă utilizatorul scrie ceva greșit → toată fizica se strică. La `inputFloors`, utilizatorul poate tasta 0 sau 100 (min/max din HTML nu blochează tastarea, doar săgețile). Recomand clamp-uri în JS: `Math.max(1, Math.min(10, val))` și `isNaN` check.
+
+**B4. `displayPower` din UI e recalculat independent de `tickEnergy` din buclă.**
+Ambele folosesc aceleași formule, deci matematic coincid acum. Dar dacă adaugi Task 1 (transfer termic între etaje), vei avea două surse de adevăr pentru „puterea curentă” care pot diverge. Recomand ca `simulationTick` să stocheze `floor.lastPower` și UI-ul să citească doar din ea.
+
+**B5. `stat-manual` duplică `total-energy`.**
+Ambele afișează `totalEnergy`. E redundant. Mai bine `stat-manual` arată *puterea instantanee totală a clădirii* (kW acum), sau *puterea medie pe etaj* – ceva informativ diferit.
+
+**B6. Slider-ul `inputThermal` nu are valoarea afișată.**
+Utilizatorul mișcă slider-ul, dar nu vede cifra. Recomand un mic label lângă el (`Coeficient: 0.002`) care se actualizează pe `input`.
+
+**B7. În modul Auto, input-ul țintă e suprascris la fiecare tick.**
+`document.getElementById(...).value = floor.targetTemp.toFixed(1)` rescrie input-ul de 10 ori pe secundă. Dacă utilizatorul încearcă să scrie, îi „fuge” cursorul. Nu e critic acum (modul auto e oricum fals), dar când refaceți AI-ul, plasați input-urile în `readonly` când modul e `auto`.
+
+**B8. Status-ul „Așteptare” după pauză.**
+Când apeși Pauză, `displayStatus.innerText = 'Așteptare'`. Ar fi mai corect „Pauză”. Mic detaliu de UX.
+
+**B9. `.face-top` există și pe ultimul etaj.**
+Nu e bug, doar de semnalat: ultimul etaj are tavan propriu, deci clădirea nu e „deschisă” sus. Dacă vreți ca acoperișul să fie vizibil (ex. o terasă), trebuie tratat separat.
+
+**B10. `hvacState` inițial e `maintaining`, nu `heating`.**
+La primul tick se autocorectează (10°C < 21 → heating), deci nu strică nimic. Doar de semnalat: dacă `inputInitTemp` e egal cu ținta, sistemul pornește pe „maintaining” – comportament corect.
+
+---
+
+## 📋 C. Ce mai trebuie adăugat – lista completă pe puncte
+
+Am grupat după cum se leagă între ele. **Fără AI auto** (exclus după cerința ta).
+
+### C1. Interactivitate 3D (punctul 1 din cerințe)
+
+- **Click pe fiecare etaj** → highlight vizual (border luminos, scale ușor) pe `floor-level` selectat.
+- **Panou de descriere per etaj** – un card care apare când selectezi un nivel, cu: temperatură actuală, țintă, stare HVAC, putere consumată, și (după ce implementați Task 2) ocupanți/CO2/lumină.
+- **Deselectare** – click pe fundal să închizi cardul.
+- **Indicator „activ”** – un mic punct colorat pe fiecare etaj care arată starea HVAC dintr-o privire (verde = menține, roșu = încălzește, albastru = răcește).
+
+### C2. Fizica avansată (punctul 2 din cerințe)
+
+- **Transfer termic între etaje** – după fiecare pas de simulare, aplică o formulă de tip `floor[i].currentTemp += k * (floor[i-1].currentTemp - floor[i].currentTemp)` (căldura urcă), și simetric un pic în jos. Etajul cel mai de jos pierde spre exterior mai mult. Asta va schimba dramatic cifrele de consum – și e exact ce impresionează jurații la „eficiență”.
+- **Variabilă „Număr persoane” per etaj** – input (slider 0–20) în panoul lateral dreapta când e selectat un etaj. Fiecare persoană:
+  - adaugă ~0.05°C/min la `currentTemp` (căldură metabolică),
+  - crește CO2 cu o rată fixă/minut,
+  - aprinde lumina (intensitate 0–100% proporțional cu ocupanții).
+- **CO2 per etaj** – variabilă `co2` care crește cu ocupanții și scade când ventilația e activă. Când CO2 > prag (ex. 1000 ppm), forțează HVAC-ul să ventileze → consum suplimentar de energie chiar dacă temperatura e OK. **Acesta e cel mai bun „hook” de business** – poți demonstra că un termostat clasic consumă mai mult decât unul care știe de CO2.
+- **Intensitate lumină** – slider/afișaj per etaj, consumă energie separat (kW) când e > 0.
+
+### C3. Mod Manual vs. Auto (punctul 3) – doar scheletul, nu AI-ul
+
+- **Manual** – deja funcționează. De adăugat doar: ocupanți, CO2, lumină editabile per etaj.
+- **Auto** – momentan e hardcodat (`21 + index*0.5`). Recomand ca înainte de AI să faceți un „Auto simplu” bazat pe reguli:
+  - Etajele inferioare țintesc cu 0.5–1°C mai sus decât cele superioare (profită de transferul termic de la C2).
+  - Dacă CO2 e mare → pornește ventilația indiferent de temperatură.
+  - Dacă nimeni nu e pe etaj → ținta scade la 18°C (eco mode).
+- **UI pentru Auto** – un input „interval temperatură acceptat” (ex. 20–23°C) și unul „prag CO2 acceptat” (ex. 800 ppm). Acestea vor fi datele de intrare pentru AI-ul din Task 3 mai târziu.
+
+### C4. Simulare temporală (punctul 4) – deja parțial acoperit
+
+- **Buton „-” / „+” pentru viteză** – acum doar ciclați înainte. Utilizatorul poate vrea să revină la 1x fără să dea click de 4 ori.
+- **Buton Reset** – vezi B1.
+- **Grafic de consum în timp** – un mini-chart (Canvas sau SVG inline, fără librării) care arată curba kWh acumulată pe ultimele N minute virtuale. **Foarte important pentru demo** – vizualizează economia dintre Manual și Auto.
+- **Log de evenimente** – un `<ul>` care notează „Etaj 2: pornit încălzire”, „Etaj 1: CO2 > 1000 ppm → ventilație forțată”. Excelent pentru jurați.
+
+### C5. Mod de urgență – Incendiu (punctul 5)
+
+- **Buton mare roșu** în header (lângă Start/Reset).
+- La apăsare:
+  - oprește bucla termodinamică normală (sau o pune pe pauză),
+  - forțează `hvacState = 'off'` pe toate etajele,
+  - taie ventilația (vent-air ascuns),
+  - colorează `floor-level` intermitent roșu,
+  - afișează un banner suprapus „🚨 EVACUARE – Uși deblocate, ventilație oprită, curent întrerupt pe nivelurile afectate”,
+  - loghează evenimentul în panoul de jos.
+- **Buton „Anulează incendiul”** – revine la starea normală.
+- Opțional: posibilitatea de a alege *pe ce etaje* e incendiul (un mic selector) – impresionează la secțiunea de siguranță.
+
+### C6. Curățenie tehnică (recomandat, dar rapid)
+
+- O funcție `validateInputs()` apelată la începutul lui `simulationTick`.
+- Un mic „label de valoare” lângă fiecare slider (thermal, eventual CO2 dacă îl faceți slider).
+- Stocarea `floor.lastPower` pentru a unifica UI-ul cu fizica (vezi B4).
+
+---
+
+## 🗺️ D. Ordine sugerată de implementare (ca să nu vă blocați)
+
+Între voi vă împărțiți cam așa:
+
+1. **Întâi**: B1, B3, B6 (fix-uri mici, 30 min) – ca demo-ul să nu aibă surprize.
+2. **Apoi**: C1 (click pe etaj + card descriere) + C5 (incendiu) – sunt **doar UI**, le poate lua colegul care nu vrea să intre în matematică.
+3. **În paralel**: C2 (transfer termic + ocupanți + CO2) – cea mai grea parte matematică, o luați după ce fix-urile sunt gata.
+4. **Apoi**: C3 (Auto pe reguli simple, fără AI) – se bazează pe C2.
+5. **La final**: C4 (grafic + log) + C6 (curățenie).
+6. **Lăsat pentru mai târziu**: AI-ul real (Task 3 din planul tău) și opțional API-ul de LLM (Task 5).
+
+---
+
+## ⚡ Concluzie scurtă
+
+**Logica actuală e solidă la nivel de bază** – termodinamica, histerezisul și integrarea consumului sunt corecte. Problemele reale sunt: Reset-ul nu oprește simularea, input-urile nu sunt validate, și *„Aplică” nu aplică tot ce pare că aplică*. Restul e feature nou.
+
+Dacă vreți, la pasul următor vă pot detalia **exact formula de transfer termic între etaje** (ca să nu greșiți semnele și unitățile) sau **schema de stare pentru incendiul cu blocare uși** – spuneți-mi ce alegeți primul.
