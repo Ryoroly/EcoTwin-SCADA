@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EcoTwin - Clădire 3D Blueprint</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="bg-gradient"></div>
+
+    <header class="top-bar glass-panel">
+        <div class="logo">🏢 EcoTwin 3D SCADA</div>
+        <div class="time-controls">
+            <button id="time-speed-btn" class="glass-btn highlight">Viteză: 1x</button>
+            <button id="btn-start" class="glass-btn">▶ Start Simulare</button>
+            <button id="btn-reset" class="glass-btn danger">Reset</button>
+        </div>
+        <div class="global-stats">
+            <span>Energie: <b id="total-energy" style="color: #00ffcc;">0.00</b> kWh</span>
+        </div>
+    </header>
+
+    <main class="container">
+        <!-- Partea Stângă -->
+        <section class="left-panel">
+            <h2 class="panel-title">Monitorizare Clădire 3D</h2>
+            <div id="building-wrapper">
+                <div id="building-container">
+                    <!-- Etajele se generează aici -->
+                </div>
+            </div>
+        </section>
+
+        <!-- Partea Dreaptă -->
+        <section class="right-panel">
+            <div class="stats-top glass-panel island">
+                <h2>📊 Statistici Live</h2>
+                <div class="stat-box">
+                    <p style="font-size:1.2rem; margin-bottom: 10px; color:#00ffcc">Timp Scurs: <span id="stat-time">0 Zile, 0 Ore</span></p>
+                    <p>Consum Total Actual: <span id="stat-manual">0 kWh</span></p>
+                    <p>Status Sistem: <span id="stat-status">Așteptare</span></p>
+                </div>
+            </div>
+
+            <div class="controls-general glass-panel island">
+                <h2>🏢 Setări Generale Clădire</h2>
+                <div class="control-group">
+                    <label>Număr etaje:</label>
+                    <input type="number" id="input-floors" class="glass-input" value="3" min="1" max="10">
+                </div>
+                <div class="control-group">
+                    <label>Suprafață etaj (m²):</label>
+                    <input type="number" id="input-area" class="glass-input" value="200" step="50">
+                </div>
+                <div class="control-group">
+                    <label>Coeficient Pierdere Termică:</label>
+                    <input type="range" id="input-thermal" min="0.001" max="0.01" step="0.001" value="0.002">
+                </div>
+                <button id="btn-apply-settings" class="glass-btn action-btn">Aplică & Reconstruiește</button>
+            </div>
+
+            <div class="controls-bottom glass-panel island">
+                <h2>⚙️ Mediu & Simulare</h2>
+                <div class="control-group">
+                    <label>Temp. Exterioară (°C):</label>
+                    <input type="number" id="input-ext-temp" class="glass-input" value="5">
+                </div>
+                <div class="control-group">
+                    <label>Temp. Inițială Clădire (°C):</label>
+                    <input type="number" id="input-init-temp" class="glass-input" value="10">
+                </div>
+                <div class="control-group">
+                    <label>Mod Simulare (HVAC):</label>
+                    <select id="sim-mode" class="glass-input">
+                        <option value="manual">Manual (Setezi pe clădire)</option>
+                        <option value="auto">Auto (Optimizat AI)</option>
+                    </select>
+                </div>
+            </div>
+        </section>
+    </main>
+    <script src="script.js"></script>
+</body>
+</html>
