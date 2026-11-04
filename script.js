@@ -24,11 +24,12 @@ const CO2_CAP = 5000;
 const CO2_FLOOR = 400;
 const THERMAL_MASS_DEFAULT = 1.0;
 
-// 🆕 Bug 3 fix: interval controlabil
 let intervalId = null;
 
-// 🆕 Bug 1 fix: cheie persistență
 const PERSIST_KEY = 'ecoTwinSettings_v1';
+
+// 🆕 FIX LOG: cooldown între log-uri HVAC per etaj (minute virtuale)
+const HVAC_LOG_COOLDOWN_MIN = 60;
 
 // ============================================================
 //  DOM
@@ -63,7 +64,7 @@ const btnCloseModal = document.getElementById('close-modal');
 const historyBody = document.getElementById('history-body');
 
 // ============================================================
-//  🆕 BUG 3 FIX — setRunning centralizează pornirea/oprirea
+//  TIMER
 // ============================================================
 function setRunning(state) {
     isRunning = state;
@@ -86,7 +87,7 @@ if (inputThermalMass) {
     inputThermalMass.addEventListener('input', (e) => {
         thermalMass = parseFloat(e.target.value);
         document.getElementById('val-thermal-mass').innerText = thermalMass.toFixed(2);
-        logEvent(`🧱 Masă termică setată la ${thermalMass.toFixed(2)}x`, 'info');
+        // 🆕 FIX LOG: nu mai loghez la fiecare mișcare (era spam)
     });
 }
 
@@ -94,6 +95,14 @@ function getValidNumber(inputEl, fallback, min = -100, max = 10000) {
     let val = parseFloat(inputEl.value);
     if (isNaN(val)) return fallback;
     return Math.max(min, Math.min(max, val));
+}
+
+// 🆕 FIX LOG: categorii HVAC pentru decizie de logare
+function hvacCategory(state) {
+    if (state === 'heating') return 'heat';
+    if (state === 'cooling') return 'cool';
+    if (state === 'ventilating') return 'vent';
+    return 'idle';
 }
 
 // ============================================================
@@ -190,7 +199,8 @@ function generateBuilding() {
             hasPeople: false,
             peopleCount: 10,
             _prevHvac: 'maintaining',
-            _prevCo2Level: 0
+            _prevCo2Level: 0,
+            _lastHvacLogMinute: -999   // 🆕 FIX LOG: cooldown per etaj
         });
 
         document.getElementById(`target-f${i}`).addEventListener('change', (e) => {
@@ -399,7 +409,7 @@ document.addEventListener('click', (e) => {
 });
 
 // ============================================================
-//  LOG EVENIMENTE
+//  LOG EVENIMENTE — 🆕 FIX LOG: limită mărită la 200
 // ============================================================
 function logEvent(message, type = 'info') {
     const container = document.getElementById('event-log');
@@ -411,7 +421,8 @@ function logEvent(message, type = 'info') {
     entry.innerHTML = `<span class="log-time">${timeStr}</span>${message}`;
     container.appendChild(entry);
 
-    while (container.children.length > 50) {
+    // 🆕 FIX LOG: 200 în loc de 50
+    while (container.children.length > 200) {
         container.removeChild(container.firstChild);
     }
     container.scrollTop = container.scrollHeight;
@@ -575,12 +586,36 @@ function simulationTick() {
             powerSumForTick += totalFloorPower;
             tickEnergy += totalFloorPower;
 
+            // ==================================================
+            //  🆕 FIX LOG — Tranziții HVAC cu cooldown
+            //  Loghează DOAR:
+            //   1. Intrare în heating/cooling (cu cooldown 60 min virtuale)
+            //   2. Orice legat de ventilating (rar, important)
+            //  NU loghează niciodată tranziții → maintaining
+            // ==================================================
             if (floor._prevHvac !== floor.hvacState) {
                 const labels = {
                     heating: 'Încălzire', cooling: 'Răcire',
                     maintaining: 'Menținere', ventilating: 'Ventilare'
                 };
-                logEvent(`Etaj ${floor.level}: ${labels[floor._prevHvac]} → ${labels[floor.hvacState]}`, 'info');
+
+                let shouldLog = false;
+
+                if (floor.hvacState === 'ventilating' || floor._prevHvac === 'ventilating') {
+                    // Ventilare = mereu log (rar, important pentru CO₂)
+                    shouldLog = true;
+                } else if (floor.hvacState === 'heating' || floor.hvacState === 'cooling') {
+                    // Intrare în heating/cooling = log cu cooldown
+                    const sinceLastLog = simulatedMinutes - floor._lastHvacLogMinute;
+                    shouldLog = sinceLastLog >= HVAC_LOG_COOLDOWN_MIN;
+                }
+                // Tranziție → maintaining: nu log (doar update _prevHvac)
+
+                if (shouldLog) {
+                    logEvent(`Etaj ${floor.level}: ${labels[floor._prevHvac]} → ${labels[floor.hvacState]}`, 'info');
+                    floor._lastHvacLogMinute = simulatedMinutes;
+                }
+
                 floor._prevHvac = floor.hvacState;
             }
 
@@ -641,7 +676,7 @@ function simulationTick() {
 }
 
 // ============================================================
-//  🆕 BUG 2 FIX — Aplică setări + re-aplică auto dacă era activ
+//  APLICĂ SETĂRI
 // ============================================================
 document.getElementById('btn-apply-settings').addEventListener('click', () => {
     setRunning(false);
@@ -662,7 +697,6 @@ document.getElementById('btn-apply-settings').addEventListener('click', () => {
     generateBuilding();
     logEvent(`🏢 Clădire reconstruită: ${inputFloors.value} etaje, ${inputArea.value} m²`, 'info');
 
-    // 🆕 Re-aplică auto config dacă era activ
     if (wasAutoApplied) {
         runAutoOptimizer();
         syncAutoUI();
@@ -707,9 +741,6 @@ btnStart.addEventListener('click', () => {
     logEvent(isRunning ? '▶ Simulare pornită' : '⏸ Simulare pe pauză', 'info');
 });
 
-// ============================================================
-//  🆕 BUG 4 FIX — Reset re-aplică auto config automat
-// ============================================================
 document.getElementById('btn-reset').addEventListener('click', async () => {
     if (fireModeActive) deactivateFireMode();
     deselectFloor();
@@ -742,7 +773,6 @@ document.getElementById('btn-reset').addEventListener('click', async () => {
 
     generateBuilding();
 
-    // 🆕 Dacă eram în Auto, re-aplică config automat (fără să mai forțezi userul)
     if (wasAutoApplied) {
         runAutoOptimizer();
         syncAutoUI();
@@ -1408,13 +1438,13 @@ function applyAutoConfig() {
     runAutoOptimizer();
     syncAutoUI();
 
-    logEvent(`🤖 Auto configurat: program ${autoConfig.workStart/60|0}:${String(autoConfig.workStart%60).padStart(2,'0')}–${autoConfig.workEnd/60|0}:${String(autoConfig.workEnd%60).padStart(2,'0')}, ${autoConfig.totalPeople} persoane`, 'success');
+    logEvent(`🤖 Auto configurat: ${autoConfig.totalPeople} persoane, confort ${autoConfig.tempMin}–${autoConfig.tempMax}°C`, 'success');
 
     saveSettings();
 }
 
 // ============================================================
-//  🆕 BUG 1 FIX — Persistență setări
+//  PERSISTENȚĂ
 // ============================================================
 function saveSettings() {
     try {
@@ -1503,17 +1533,15 @@ function loadSettings() {
         readAutoConfigFromUI();
         autoConfig.isApplied = false;
 
-        // Mesaj în auto-status
         if (simModeSelect.value === 'auto') {
             document.getElementById('auto-status').innerHTML =
-                '<span style="color:#f39c12;">⚙️ Configurație restaurată din sesiunea anterioară — apasă „Aplică Configurație" pentru a porni.</span>';
+                '<span style="color:#f39c12;">⚙️ Configurație restaurată — apasă „Aplică Configurație" pentru a porni.</span>';
         }
     } catch (e) {
         console.warn('loadSettings error:', e);
     }
 }
 
-// Bind save la toate inputurile relevante
 (function bindSaveListeners() {
     const changeIds = [
         'input-floors', 'input-area', 'input-thermal', 'input-init-temp',
