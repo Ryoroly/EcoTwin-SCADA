@@ -223,3 +223,49 @@ Am grupat după cum se leagă între ele. **Fără AI auto** (exclus după cerin
 **Logica actuală e solidă la nivel de bază** – termodinamica, histerezisul și integrarea consumului sunt corecte. Problemele reale sunt: Reset-ul nu oprește simularea, input-urile nu sunt validate, și *„Aplică” nu aplică tot ce pare că aplică*. Restul e feature nou.
 
 Dacă vreți, la pasul următor vă pot detalia **exact formula de transfer termic între etaje** (ca să nu greșiți semnele și unitățile) sau **schema de stare pentru incendiul cu blocare uși** – spuneți-mi ce alegeți primul.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ADELIN - PRIMUL COMMIT:
+
+1. Problema:
+
+## Problema actuală:
+js
+
+if (simulatedMinutes > 0) saveToHistory();
+
+→ Orice Reset salvează, chiar și o simulare de 30 de secunde virtuale. La demo, un judecător curios apasă Reset din greșeală → pierde scenariul și umple istoricul cu intrări inutile.
+
+Ce vrem:
+
+    Sub 1h virtual → reset silențios, fără salvare (nimic relevant nu s-a întâmplat).
+
+    Peste 1h virtual → confirm dialog, apoi salvare + reset.
+
+    Anulare din dialog → nu se întâmplă nimic.
+
+## Ce s-a schimbat concret
+
+    Prag minim 60 min virtuale – sub asta, Reset-ul e silențios (nu poluează istoricul).
+
+    confirm() – dialog nativ, zero dependențe, merge în orice browser.
+
+    if (!ok) return; – dacă userul apasă Cancel, simularea continuă neatinsă (nu se pierde nimic).
+
+    Mesaj informativ – arată timpul rulat și consumul, ca să știi ce salvezi.
+
+    Status text schimbat din „Resetat (Salvat & Pauză)” în „Pauză” – mai curat.
+
+

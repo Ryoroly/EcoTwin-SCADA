@@ -326,17 +326,30 @@ btnStart.addEventListener('click', () => {
 });
 
 document.getElementById('btn-reset').addEventListener('click', () => {
-    if (simulatedMinutes > 0) saveToHistory();
+    const MIN_MINUTES_TO_SAVE = 60; // 1h virtual
+
+    // Dacă simularea a rulat suficient, cere confirmare + salvează
+    if (simulatedMinutes >= MIN_MINUTES_TO_SAVE) {
+        const ok = confirm(
+            `Simularea a rulat ${formatTime(simulatedMinutes)}.\n` +
+            `Consum total: ${totalEnergy.toFixed(2)} kWh.\n\n` +
+            `Dorești să salvezi în istoric și să resetezi?`
+        );
+        if (!ok) return; // utilizatorul a apăsat Cancel → nu facem nimic
+        saveToHistory();
+    }
 
     isRunning = false;
     btnStart.innerText = '▶ Start Simulare';
     btnStart.classList.remove('highlight');
-    totalEnergy = 0; simulatedMinutes = 0;
-    displayEnergy.innerText = "0.00"; displayTime.innerText = "0 Zile, 0 Ore";
+    totalEnergy = 0;
+    simulatedMinutes = 0;
+    displayEnergy.innerText = "0.00";
+    displayTime.innerText = "0 Zile, 0 Ore";
     displayInstantPower.innerText = "0.00 kW";
-    displayStatus.innerText = "Resetat (Salvat & Pauză)";
+    displayStatus.innerText = "Pauză";
     displayStatus.style.color = "#ff9f43";
-    generateBuilding(); 
+    generateBuilding();
 });
 
 // === LOGICA PENTRU ISTORIC & COMPARAȚII ===
