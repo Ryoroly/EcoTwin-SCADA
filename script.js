@@ -260,77 +260,79 @@ function simulationTick() {
         for (let i = 0; i < numFloors; i++) floorsData[i].currentTemp = newTemps[i];
 
         // 2. METABOLISM & CONTROL SEPARAT (HVAC vs EVACUARE LOCALĂ)
-        floorsData.forEach((floor) => {
-            
-            let currentOccupants = floor.hasPeople ? floor.peopleCount : 0;
+floorsData.forEach((floor) => {
+    
+    let currentOccupants = floor.hasPeople ? floor.peopleCount : 0;
 
-            // Oamenii generează CO2 și căldură
-            if (floor.hasPeople) {
-                floor.co2 += currentOccupants * 1.5; 
-                floor.currentTemp += currentOccupants * 0.001; 
-            } else {
-                floor.co2 -= 0.5; // Scădere naturală (aerisire pasivă)
-            }
+    // Oamenii generează CO2 și căldură
+    if (floor.hasPeople) {
+        floor.co2 += currentOccupants * 1.5; 
+        floor.currentTemp += currentOccupants * 0.001; 
+    } else {
+        floor.co2 -= 0.5; // Scădere naturală (aerisire pasivă)
+    }
 
-            // A. Logica Ventilatorului Local (Evacuare CO2 - INTELIGENTĂ ȘI DINAMICĂ)
-            floor.exhaustActive = false;
-            let exhaustPower = 0;
+    // A. Logica Ventilatorului Local (Evacuare CO2 - INTELIGENTĂ ȘI DINAMICĂ)
+    floor.exhaustActive = false;
+    let exhaustPower = 0;
+    let ventTempDelta = 0; // acumulator: impactul termic al ventilației (exhaust + ventilating)
 
-            if (floor.co2 > 600) { 
-                floor.exhaustActive = true;
-                
-                // Turație Variabilă: cu cât e mai mare CO2, cu atât trage mai tare.
-                // Poate extrage până la 120 ppm pe ciclu dacă situația e critică.
-                let extractionEffort = Math.min(120, (floor.co2 - 500) * 0.1); 
-                
-                floor.co2 -= extractionEffort; 
-                
-                // PENALIZARE ENERGETICĂ: Consumul crește dramatic dacă ventilatorul e dus la limită
-                // La 100% efort, consumă 2.5 kW (foarte mult pentru un ventilator)
-                exhaustPower = (extractionEffort / 100) * 2.5 * areaMultiplier; 
-                
-                // Pentru că trage aerul afară masiv, aduce aer de afară, afectând temperatura camerei
-                floor.currentTemp += (extTemp - floor.currentTemp) * (extractionEffort / 100) * 0.005;
-            }
-            if (floor.co2 < 400) floor.co2 = 400;
+    if (floor.co2 > 600) { 
+        floor.exhaustActive = true;
+        
+        // Turație Variabilă: cu cât e mai mare CO2, cu atât trage mai tare.
+        let extractionEffort = Math.min(120, (floor.co2 - 500) * 0.1); 
+        
+        floor.co2 -= extractionEffort; 
+        
+        // D7: Putere maximă redusă de la 2.5 kW → 1.2 kW (raportat la areaMultiplier=1)
+        exhaustPower = (extractionEffort / 100) * 1.2 * areaMultiplier; 
+        
+        // Impact termic acumulat (va fi plafonat mai jos)
+        ventTempDelta += (extTemp - floor.currentTemp) * (extractionEffort / 100) * 0.005;
+    }
+    if (floor.co2 < 400) floor.co2 = 400;
 
-            // B. Logica Termică (HVAC Principal pe peretele drept)
-            let diff = floor.targetTemp - floor.currentTemp;
-            
-            if (diff < -0.8) {
-                floor.hvacState = 'cooling'; 
-            } else if (diff > 0.8) {
-                floor.hvacState = 'heating'; 
-            } else if (floor.co2 > 1200) {
-                // Dacă micul ventilator e dus la extrem și tot nu face față (CO2 > 1200),
-                // dăm drumul și la sistemul uriaș centralizat pe ventilație (MOV)
-                floor.hvacState = 'ventilating'; 
-            } else if (Math.abs(diff) <= 0.5 && floor.co2 < 900) {
-                floor.hvacState = 'maintaining'; 
-            }
+    // B. Logica Termică (HVAC Principal pe peretele drept)
+    let diff = floor.targetTemp - floor.currentTemp;
+    
+    if (diff < -0.8) {
+        floor.hvacState = 'cooling'; 
+    } else if (diff > 0.8) {
+        floor.hvacState = 'heating'; 
+    } else if (floor.co2 > 1200) {
+        floor.hvacState = 'ventilating'; 
+    } else if (Math.abs(diff) <= 0.5 && floor.co2 < 900) {
+        floor.hvacState = 'maintaining'; 
+    }
 
-            let hvacPower = 0.1 * areaMultiplier; // Standby
-            
-            if (floor.hvacState === 'heating') {
-                floor.currentTemp += 0.08; 
-                hvacPower = 2.0 * areaMultiplier; 
-                floor.co2 -= 5;
-            } else if (floor.hvacState === 'cooling') {
-                floor.currentTemp -= 0.08;
-                hvacPower = 2.5 * areaMultiplier; 
-                floor.co2 -= 5;
-            } else if (floor.hvacState === 'ventilating') {
-                hvacPower = 1.5 * areaMultiplier; 
-                floor.co2 -= 40; // Sistemul principal curăță masiv aerul
-                floor.currentTemp += (extTemp - floor.currentTemp) * 0.01;
-            }
+    let hvacPower = 0.1 * areaMultiplier; // Standby
+    
+    if (floor.hvacState === 'heating') {
+        floor.currentTemp += 0.08; 
+        hvacPower = 2.0 * areaMultiplier; 
+        floor.co2 -= 5;
+    } else if (floor.hvacState === 'cooling') {
+        floor.currentTemp -= 0.08;
+        hvacPower = 2.5 * areaMultiplier; 
+        floor.co2 -= 5;
+    } else if (floor.hvacState === 'ventilating') {
+        hvacPower = 1.5 * areaMultiplier; 
+        floor.co2 -= 40;
+        ventTempDelta += (extTemp - floor.currentTemp) * 0.01;
+    }
 
-            // C. Calcul Putere Totală pe Etaj
-            let totalFloorPower = hvacPower + exhaustPower;
-            floor.lastPower = totalFloorPower; 
-            currentInstantPower += totalFloorPower;
-            tickEnergy += totalFloorPower; 
-        });
+    // D12: Plafonare impact termic ventilație la ±0.15°C/min
+    // Previne înghețul/supraîncălzirea când extTemp e la extreme (-30°C / +40°C)
+    ventTempDelta = Math.max(-0.15, Math.min(0.15, ventTempDelta));
+    floor.currentTemp += ventTempDelta;
+
+    // C. Calcul Putere Totală pe Etaj
+    let totalFloorPower = hvacPower + exhaustPower;
+    floor.lastPower = totalFloorPower; 
+    currentInstantPower += totalFloorPower;
+    tickEnergy += totalFloorPower; 
+});
     }
 
     // 3. UPDATE UI LENT
