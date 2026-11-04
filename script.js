@@ -5,6 +5,8 @@ let simulatedMinutes = 0;
 let fireModeActive = false;
 let wasRunningBeforeFire = false;
 
+let selectedFloorIndex = null;
+
 let energyHistory = [{ min: 0, kwh: 0 }];
 
 const speeds = [1, 5, 15, 60, 120]; 
@@ -30,9 +32,12 @@ const btnSpeedUp = document.getElementById('btn-speed-up');
 const speedDisplay = document.getElementById('speed-display');
 const btnStart = document.getElementById('btn-start');
 
+
 const btnFire = document.getElementById('btn-fire');
 const fireBanner = document.getElementById('fire-banner');
 const btnFireCancel = document.getElementById('btn-fire-cancel');
+
+const floorDetailPanel = document.getElementById('floor-detail-panel');
 
 const btnHistory = document.getElementById('btn-history');
 const modalHistory = document.getElementById('history-modal');
@@ -68,7 +73,9 @@ function generateBuilding() {
 
     buildingContainer.innerHTML = '';
     floorsData = [];
-
+    // Reset selecție la reconstrucție
+    selectedFloorIndex = null;
+    floorDetailPanel.classList.add('floor-panel-hidden');
         // === SCALING DINAMIC ===
     // 1-7 etaje: păstrează 200px/etaj (aspect actual)
     // Peste 7: scade progresiv până la 100px/etaj (minim lizibil)
@@ -127,6 +134,12 @@ function generateBuilding() {
         `;
         buildingContainer.appendChild(floorDiv);
 
+        // Click pe etaj → selectează
+        floorDiv.addEventListener('click', (e) => {
+            e.stopPropagation();
+            selectFloor(i - 1);
+        });
+
         floorsData.push({
             level: i,
             currentTemp: initTemp,
@@ -141,7 +154,8 @@ function generateBuilding() {
         document.getElementById(`target-f${i}`).addEventListener('change', (e) => {
             if (simModeSelect.value !== 'auto') {
                 floorsData[i-1].targetTemp = getValidNumber(e.target, 22, 10, 35);
-                e.target.value = floorsData[i-1].targetTemp; 
+                e.target.value = floorsData[i-1].targetTemp;
+                if (selectedFloorIndex === i - 1) updateFloorDetailPanel(floorsData[i-1]);
             }
         });
 
@@ -154,11 +168,13 @@ function generateBuilding() {
             slider.disabled = !e.target.checked;
             occVal.innerText = e.target.checked ? slider.value : 0;
             document.getElementById(`base-f${i}`).classList.toggle('lights-on', e.target.checked);
+            if (selectedFloorIndex === i - 1) updateFloorDetailPanel(floorsData[i-1]);
         });
 
         slider.addEventListener('input', (e) => {
             floorsData[i-1].peopleCount = parseInt(e.target.value);
             occVal.innerText = e.target.value;
+            if (selectedFloorIndex === i - 1) updateFloorDetailPanel(floorsData[i-1]);  
         });
     }
 }
@@ -207,6 +223,118 @@ function formatTime(mins) {
     const h = Math.floor((mins % (24 * 60)) / 60);
     return `${d} Zile, ${h} Ore`;
 }
+
+// === SELECȚIE ETaj + PANOU 2D ===
+function selectFloor(index) {
+    if (index < 0 || index >= floorsData.length) return;
+
+    // Scoate highlight-ul de pe etajul anterior
+    if (selectedFloorIndex !== null) {
+        const prev = buildingContainer.children[selectedFloorIndex];
+        if (prev) prev.classList.remove('selected');
+    }
+
+    selectedFloorIndex = index;
+    const floorEl = buildingContainer.children[index];
+    if (floorEl) floorEl.classList.add('selected');
+
+    floorDetailPanel.classList.remove('floor-panel-hidden');
+    document.getElementById('floor-detail-title').innerText = `NIVEL ${index + 1}`;
+    updateFloorDetailPanel(floorsData[index]);
+}
+
+function deselectFloor() {
+    if (selectedFloorIndex === null) return;
+    const prev = buildingContainer.children[selectedFloorIndex];
+    if (prev) prev.classList.remove('selected');
+    selectedFloorIndex = null;
+    floorDetailPanel.classList.add('floor-panel-hidden');
+}
+
+function updateFloorDetailPanel(floor) {
+    if (!floor) return;
+
+    const isFire = fireModeActive;
+    const isAuto = simModeSelect.value === 'auto';
+
+    document.getElementById('detail-temp').innerText = floor.currentTemp.toFixed(1) + '°C';
+    document.getElementById('detail-co2').innerText = Math.round(floor.co2) + ' ppm';
+    document.getElementById('detail-power').innerText = floor.lastPower.toFixed(2) + ' kW';
+
+    const hvacLabels = {
+        'heating': '🔥 Încălzește',
+        'cooling': '❄ Răcește',
+        'maintaining': '✋ Menține',
+        'ventilating': '🌪 Ventilează'
+    };
+    document.getElementById('detail-hvac').innerText = hvacLabels[floor.hvacState] || floor.hvacState;
+
+    const targetSlider = document.getElementById('detail-target');
+    targetSlider.disabled = isFire || isAuto;
+    targetSlider.value = floor.targetTemp;
+    document.getElementById('detail-target-val').innerText = floor.targetTemp.toFixed(1);
+
+    const occChk = document.getElementById('detail-occupied');
+    occChk.disabled = isFire;
+    occChk.checked = floor.hasPeople;
+
+    const peopleSlider = document.getElementById('detail-people');
+    peopleSlider.disabled = isFire || !floor.hasPeople;
+    peopleSlider.value = floor.peopleCount;
+    document.getElementById('detail-people-val').innerText = floor.hasPeople ? floor.peopleCount : 0;
+}
+
+// --- Handlere panou → floorsData + sync 3D ---
+document.getElementById('floor-detail-close').addEventListener('click', deselectFloor);
+
+document.getElementById('detail-target').addEventListener('input', (e) => {
+    if (selectedFloorIndex === null) return;
+    const val = parseFloat(e.target.value);
+    const floor = floorsData[selectedFloorIndex];
+    floor.targetTemp = val;
+    document.getElementById('detail-target-val').innerText = val.toFixed(1);
+    const input3D = document.getElementById(`target-f${floor.level}`);
+    if (input3D) input3D.value = val;
+});
+
+document.getElementById('detail-occupied').addEventListener('change', (e) => {
+    if (selectedFloorIndex === null) return;
+    const floor = floorsData[selectedFloorIndex];
+    floor.hasPeople = e.target.checked;
+
+    const level = floor.level;
+    const chk3D = document.getElementById(`chk-occ-f${level}`);
+    const slider3D = document.getElementById(`slider-occ-f${level}`);
+    const occVal3D = document.getElementById(`occ-val-f${level}`);
+    const baseEl = document.getElementById(`base-f${level}`);
+    if (chk3D) chk3D.checked = e.target.checked;
+    if (slider3D) slider3D.disabled = !e.target.checked;
+    if (occVal3D) occVal3D.innerText = e.target.checked ? floor.peopleCount : 0;
+    if (baseEl) baseEl.classList.toggle('lights-on', e.target.checked);
+
+    updateFloorDetailPanel(floor);
+});
+
+document.getElementById('detail-people').addEventListener('input', (e) => {
+    if (selectedFloorIndex === null) return;
+    const floor = floorsData[selectedFloorIndex];
+    floor.peopleCount = parseInt(e.target.value);
+    document.getElementById('detail-people-val').innerText = floor.peopleCount;
+
+    const slider3D = document.getElementById(`slider-occ-f${floor.level}`);
+    const occVal3D = document.getElementById(`occ-val-f${floor.level}`);
+    if (slider3D) slider3D.value = floor.peopleCount;
+    if (occVal3D) occVal3D.innerText = floor.peopleCount;
+});
+
+// --- Deselectare la click pe fundal ---
+document.addEventListener('click', (e) => {
+    if (selectedFloorIndex === null) return;
+    if (e.target.closest('.floor-level')) return;
+    if (e.target.closest('#floor-detail-panel')) return;
+    if (e.target.closest('button, input, select, label')) return;
+    deselectFloor();
+});
 
 // === MODAL CONFIRMARE REUTILIZABIL ===
 function showConfirm({ title, body, okLabel = '✓ Confirmă', cancelLabel = 'Anulează' }) {
@@ -406,6 +534,12 @@ function simulationTick() {
             exhaustEl.classList.remove('active', 'fast');
         }
     });
+
+        // Update panou detalii dacă e deschis
+    if (selectedFloorIndex !== null && floorsData[selectedFloorIndex]) {
+        updateFloorDetailPanel(floorsData[selectedFloorIndex]);
+    }
+
     totalEnergy += (tickEnergy) / 60; 
     displayEnergy.innerText = totalEnergy.toFixed(2);
 }
@@ -430,6 +564,7 @@ btnStart.addEventListener('click', () => {
 
 document.getElementById('btn-reset').addEventListener('click', async () => {
     if (fireModeActive) deactivateFireMode();
+    deselectFloor(); // închide panoul dacă era deschis
     const MIN_MINUTES_TO_SAVE = 60;
 
     if (simulatedMinutes >= MIN_MINUTES_TO_SAVE) {
@@ -476,6 +611,12 @@ async function activateFireMode() {
     fireModeActive = true;
     wasRunningBeforeFire = isRunning;
     isRunning = false;
+    deselectFloor();  // ascunde panoul 2D în timpul urgenței
+
+        // Menținem panoul deschis, dar îl actualizăm să reflecte starea de urgență
+    if (selectedFloorIndex !== null && floorsData[selectedFloorIndex]) {
+        updateFloorDetailPanel(floorsData[selectedFloorIndex]);
+    }
 
     // UI general
     btnStart.innerText = '▶ Start Simulare';

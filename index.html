@@ -40,6 +40,32 @@
 
         <!-- Partea Dreaptă -->
         <section class="right-panel">
+                <!-- Floor Detail Panel (apare la click pe etaj) -->
+    <div id="floor-detail-panel" class="controls-general glass-panel island floor-panel-hidden">
+        <div class="floor-detail-header">
+            <h2 style="margin:0;">🏢 <span id="floor-detail-title">NIVEL 1</span></h2>
+            <button id="floor-detail-close" class="glass-btn" title="Închide">✕</button>
+        </div>
+        <div class="floor-detail-stats">
+            <div class="detail-row"><span>🌡 Temperatură</span><b id="detail-temp">22.0°C</b></div>
+            <div class="detail-row"><span>💨 CO2</span><b id="detail-co2">400 ppm</b></div>
+            <div class="detail-row"><span>⚡ Consum</span><b id="detail-power">0.00 kW</b></div>
+            <div class="detail-row"><span>❄ Stare HVAC</span><b id="detail-hvac">Menține</b></div>
+        </div>
+        <div class="control-group" style="margin-top: 15px;">
+            <label>Țintă temperatură: <span id="detail-target-val" style="color:#00ffcc">22.0</span>°C</label>
+            <input type="range" id="detail-target" min="10" max="35" step="0.5" value="22">
+        </div>
+        <div class="control-group">
+            <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                <input type="checkbox" id="detail-occupied" style="accent-color:#f39c12;"> Ocupat
+            </label>
+        </div>
+        <div class="control-group">
+            <label>Persoane: <span id="detail-people-val" style="color:#f39c12">0</span></label>
+            <input type="range" id="detail-people" min="1" max="50" value="10" disabled>
+        </div>
+    </div>
             <div class="stats-top glass-panel island">
                 <h2>📊 Statistici Live</h2>
                 <div class="stat-box">

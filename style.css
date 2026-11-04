@@ -363,3 +363,66 @@ body { height: 100vh; display: flex; flex-direction: column; color: #fff; overfl
     to   { box-shadow: inset 0 0 80px rgba(255, 50, 50, 0.7), 0 0 40px rgba(255, 50, 50, 0.7); }
 }
 
+/* === PANOU DETALII ETaj === */
+.floor-panel-hidden {
+    display: none;
+}
+
+.floor-detail-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+#floor-detail-close {
+    padding: 6px 12px;
+    min-width: auto;
+    border-color: rgba(255, 71, 87, 0.4);
+}
+#floor-detail-close:hover {
+    background: rgba(255, 71, 87, 0.3);
+}
+
+.floor-detail-stats {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px;
+    background: rgba(0,0,0,0.35);
+    border-radius: 8px;
+    border: 1px solid rgba(0,255,204,0.2);
+}
+
+.detail-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.9rem;
+    color: #ccc;
+}
+
+.detail-row b {
+    color: #00ffcc;
+    font-size: 1rem;
+    text-shadow: 0 0 6px rgba(0, 255, 204, 0.4);
+}
+
+#detail-hvac {
+    color: #ff9f43 !important;
+    text-shadow: 0 0 6px rgba(255, 159, 67, 0.4) !important;
+}
+
+/* Highlight etaj selectat */
+.floor-level.selected .face-base {
+    border-color: #00ffcc;
+    border-width: 3px;
+    box-shadow: inset 0 0 40px rgba(0, 255, 204, 0.5), 0 0 25px rgba(0, 255, 204, 0.8);
+}
+.floor-level.selected .face-front,
+.floor-level.selected .face-right {
+    border-color: #00ffcc;
+    border-top: 3px solid #00ffcc;
+    box-shadow: 0 0 15px rgba(0, 255, 204, 0.5);
+}
+
