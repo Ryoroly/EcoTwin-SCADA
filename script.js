@@ -9,9 +9,7 @@ let fireModeActive = false;
 let wasRunningBeforeFire = false;
 
 let selectedFloorIndex = null;
-
 let selectedScenarios = new Set();
-
 let energyHistory = [{ min: 0, kwh: 0 }];
 
 const speeds = [1, 5, 15, 60, 120];
@@ -20,12 +18,17 @@ let timeMultiplier = speeds[speedIndex];
 let floorsData = [];
 
 let thermalMass = 1.0;
-let savedManualTargets = null;
 let pausedByVisibility = false;
 
 const CO2_CAP = 5000;
 const CO2_FLOOR = 400;
 const THERMAL_MASS_DEFAULT = 1.0;
+
+// 🆕 Bug 3 fix: interval controlabil
+let intervalId = null;
+
+// 🆕 Bug 1 fix: cheie persistență
+const PERSIST_KEY = 'ecoTwinSettings_v1';
 
 // ============================================================
 //  DOM
@@ -58,6 +61,18 @@ const btnHistory = document.getElementById('btn-history');
 const modalHistory = document.getElementById('history-modal');
 const btnCloseModal = document.getElementById('close-modal');
 const historyBody = document.getElementById('history-body');
+
+// ============================================================
+//  🆕 BUG 3 FIX — setRunning centralizează pornirea/oprirea
+// ============================================================
+function setRunning(state) {
+    isRunning = state;
+    if (state) {
+        if (!intervalId) intervalId = setInterval(simulationTick, 100);
+    } else {
+        if (intervalId) { clearInterval(intervalId); intervalId = null; }
+    }
+}
 
 // ============================================================
 //  UTILITARE
@@ -207,7 +222,7 @@ function generateBuilding() {
 }
 
 // ============================================================
-//  MOD SIMULARE — toggle panou auto + blocare/deblocare inputuri
+//  MOD SIMULARE
 // ============================================================
 simModeSelect.addEventListener('change', (e) => {
     const isAuto = e.target.value === 'auto';
@@ -273,7 +288,7 @@ function formatTime(mins) {
 }
 
 // ============================================================
-//  SELECȚIE ETAJ + PANOU 2D
+//  SELECȚIE ETAJ
 // ============================================================
 function selectFloor(index) {
     if (index < 0 || index >= floorsData.length) return;
@@ -324,11 +339,11 @@ function updateFloorDetailPanel(floor) {
     document.getElementById('detail-target-val').innerText = floor.targetTemp.toFixed(1);
 
     const occChk = document.getElementById('detail-occupied');
-    occChk.disabled = isFire || isAuto;  // 🆕 blocat și în Auto
+    occChk.disabled = isFire || isAuto;
     occChk.checked = floor.hasPeople;
 
     const peopleSlider = document.getElementById('detail-people');
-    peopleSlider.disabled = isFire || isAuto || !floor.hasPeople;  // 🆕 blocat și în Auto
+    peopleSlider.disabled = isFire || isAuto || !floor.hasPeople;
     peopleSlider.value = floor.peopleCount;
     document.getElementById('detail-people-val').innerText = floor.hasPeople ? floor.peopleCount : 0;
 }
@@ -626,10 +641,10 @@ function simulationTick() {
 }
 
 // ============================================================
-//  APLICĂ SETĂRI
+//  🆕 BUG 2 FIX — Aplică setări + re-aplică auto dacă era activ
 // ============================================================
 document.getElementById('btn-apply-settings').addEventListener('click', () => {
-    isRunning = false;
+    setRunning(false);
     btnStart.innerText = '▶ Start Simulare';
     btnStart.classList.remove('highlight');
 
@@ -642,10 +657,24 @@ document.getElementById('btn-apply-settings').addEventListener('click', () => {
     displayStatus.innerText = 'Pauză';
     displayStatus.style.color = '#ff9f43';
 
+    const wasAutoApplied = simModeSelect.value === 'auto' && autoConfig.isApplied;
+
     generateBuilding();
     logEvent(`🏢 Clădire reconstruită: ${inputFloors.value} etaje, ${inputArea.value} m²`, 'info');
+
+    // 🆕 Re-aplică auto config dacă era activ
+    if (wasAutoApplied) {
+        runAutoOptimizer();
+        syncAutoUI();
+        logEvent('🤖 Configurație Auto reaplicată după reconstrucție', 'info');
+    }
+
+    saveSettings();
 });
 
+// ============================================================
+//  TEMP INIȚIALĂ
+// ============================================================
 inputInitTemp.addEventListener('change', () => {
     if (simulatedMinutes === 0 && !isRunning) {
         generateBuilding();
@@ -670,7 +699,7 @@ btnStart.addEventListener('click', () => {
         displayStatus.style.color = '#ff4757';
         return;
     }
-    isRunning = !isRunning;
+    setRunning(!isRunning);
     btnStart.innerText = isRunning ? '⏸ Pauză Simulare' : '▶ Start Simulare';
     btnStart.classList.toggle('highlight');
     displayStatus.innerText = isRunning ? 'Simulare Activă...' : 'Pauză';
@@ -678,6 +707,9 @@ btnStart.addEventListener('click', () => {
     logEvent(isRunning ? '▶ Simulare pornită' : '⏸ Simulare pe pauză', 'info');
 });
 
+// ============================================================
+//  🆕 BUG 4 FIX — Reset re-aplică auto config automat
+// ============================================================
 document.getElementById('btn-reset').addEventListener('click', async () => {
     if (fireModeActive) deactivateFireMode();
     deselectFloor();
@@ -694,7 +726,7 @@ document.getElementById('btn-reset').addEventListener('click', async () => {
         saveToHistory();
     }
 
-    isRunning = false;
+    setRunning(false);
     btnStart.innerText = '▶ Start Simulare';
     btnStart.classList.remove('highlight');
     totalEnergy = 0;
@@ -705,8 +737,23 @@ document.getElementById('btn-reset').addEventListener('click', async () => {
     displayInstantPower.innerText = '0.00 kW';
     displayStatus.innerText = 'Pauză';
     displayStatus.style.color = '#ff9f43';
+
+    const wasAutoApplied = simModeSelect.value === 'auto' && autoConfig.isApplied;
+
     generateBuilding();
-    logEvent('🔄 Scenariu resetat - simulare oprită', 'info');
+
+    // 🆕 Dacă eram în Auto, re-aplică config automat (fără să mai forțezi userul)
+    if (wasAutoApplied) {
+        runAutoOptimizer();
+        syncAutoUI();
+        document.getElementById('auto-status').innerHTML =
+            '<span style="color:#00ffcc;">✅ Reset complet. Configurația Auto a fost reaplicată. Poți da Start.</span>';
+        logEvent('🔄 Reset complet — configurație Auto reaplicată automat', 'success');
+    } else {
+        logEvent('🔄 Scenariu resetat - simulare oprită', 'info');
+    }
+
+    saveSettings();
 });
 
 // ============================================================
@@ -723,7 +770,7 @@ async function activateFireMode() {
 
     fireModeActive = true;
     wasRunningBeforeFire = isRunning;
-    isRunning = false;
+    setRunning(false);
     deselectFloor();
 
     if (selectedFloorIndex !== null && floorsData[selectedFloorIndex]) {
@@ -770,7 +817,7 @@ function deactivateFireMode() {
     document.querySelectorAll('.exhaust-fan').forEach(el => el.classList.remove('off'));
 
     if (wasRunningBeforeFire) {
-        isRunning = true;
+        setRunning(true);
         btnStart.innerText = '⏸ Pauză Simulare';
         btnStart.classList.add('highlight');
         displayStatus.innerText = 'Simulare Activă...';
@@ -786,7 +833,7 @@ btnFire.addEventListener('click', () => {
 btnFireCancel.addEventListener('click', deactivateFireMode);
 
 // ============================================================
-//  ISTORIC & COMPARAȚII
+//  ISTORIC
 // ============================================================
 function saveToHistory() {
     let history = JSON.parse(localStorage.getItem('ecoTwinHistory')) || [];
@@ -1058,14 +1105,14 @@ modalHistory.addEventListener('click', (e) => { if (e.target === modalHistory) m
 document.addEventListener('visibilitychange', () => {
     if (document.hidden && isRunning) {
         pausedByVisibility = true;
-        isRunning = false;
+        setRunning(false);
         btnStart.innerText = '▶ Start Simulare';
         btnStart.classList.remove('highlight');
         displayStatus.innerText = '⏸ Pauză (tab ascuns)';
         displayStatus.style.color = '#ff9f43';
     } else if (!document.hidden && pausedByVisibility) {
         pausedByVisibility = false;
-        isRunning = true;
+        setRunning(true);
         btnStart.innerText = '⏸ Pauză Simulare';
         btnStart.classList.add('highlight');
         displayStatus.innerText = 'Simulare Activă...';
@@ -1075,7 +1122,7 @@ document.addEventListener('visibilitychange', () => {
 });
 
 // ============================================================
-//  AUTO MODE — configurare + optimizator
+//  AUTO MODE
 // ============================================================
 const autoConfig = {
     workStart: 8 * 60,
@@ -1114,13 +1161,6 @@ const autoConfig = {
     el('btn-apply-auto').addEventListener('click', applyAutoConfig);
 })();
 
-// --- Helpers timp virtual ---
-function getSimDay() {
-    return Math.floor(simulatedMinutes / (24 * 60)) % 7;
-}
-function getSimMinuteOfDay() {
-    return simulatedMinutes % (24 * 60);
-}
 function isWorkTime(minuteAhead = 0) {
     const total = simulatedMinutes + minuteAhead;
     const day = Math.floor(total / (24 * 60)) % 7;
@@ -1129,7 +1169,6 @@ function isWorkTime(minuteAhead = 0) {
     return min >= autoConfig.workStart && min < autoConfig.workEnd;
 }
 
-// Cache pentru minutesUntilWork (evită bucle de 10080 iterații per tick)
 let _cacheMUW_At = -1;
 let _cacheMUW_Val = -1;
 function minutesUntilWork() {
@@ -1143,7 +1182,6 @@ function minutesUntilWork() {
     return result;
 }
 
-// --- Distribuție persoane pe etaje ---
 function distributePeople() {
     const n = floorsData.length;
     const total = autoConfig.totalPeople;
@@ -1187,7 +1225,6 @@ function distributePeople() {
     }
 }
 
-// --- Calculează targetTemp pentru un etaj în program ---
 function computeComfortTarget(floor, floorIndex) {
     let lowTarget = autoConfig.tempMin;
 
@@ -1211,7 +1248,6 @@ function computeComfortTarget(floor, floorIndex) {
     return floor.currentTemp;
 }
 
-// --- Optimizatorul propriu-zis ---
 function runAutoOptimizer() {
     if (simModeSelect.value !== 'auto') return;
     if (!autoConfig.isApplied) return;
@@ -1239,7 +1275,6 @@ function runAutoOptimizer() {
     });
 }
 
-// --- Sync UI (o dată per tick) — BLOCARE COMPLETĂ + status live ---
 function syncAutoUI() {
     floorsData.forEach(floor => {
         const inputEl = document.getElementById(`target-f${floor.level}`);
@@ -1274,7 +1309,6 @@ function syncAutoUI() {
     updateAutoStatusLine();
 }
 
-// --- Afișează starea curentă în panoul Auto ---
 function updateAutoStatusLine() {
     const el = document.getElementById('auto-status');
     if (!el || !autoConfig.isApplied) return;
@@ -1320,7 +1354,6 @@ function updateAutoStatusLine() {
     `;
 }
 
-// --- Citește config din UI ---
 function readAutoConfigFromUI() {
     const el = (id) => document.getElementById(id);
     const parseTime = (s) => { const [h, m] = s.split(':').map(Number); return h * 60 + m; };
@@ -1341,7 +1374,6 @@ function readAutoConfigFromUI() {
     autoConfig.peopleDist = el('auto-people-dist').value;
 }
 
-// --- Aplică config + reset simulare ---
 function applyAutoConfig() {
     readAutoConfigFromUI();
 
@@ -1360,7 +1392,7 @@ function applyAutoConfig() {
 
     autoConfig.isApplied = true;
 
-    isRunning = false;
+    setRunning(false);
     btnStart.innerText = '▶ Start Simulare';
     btnStart.classList.remove('highlight');
     totalEnergy = 0;
@@ -1376,12 +1408,140 @@ function applyAutoConfig() {
     runAutoOptimizer();
     syncAutoUI();
 
-    logEvent(`🤖 Auto configurat: program ${formatTime(0).replace('0 Zile, ','')}, ${autoConfig.totalPeople} persoane`, 'success');
+    logEvent(`🤖 Auto configurat: program ${autoConfig.workStart/60|0}:${String(autoConfig.workStart%60).padStart(2,'0')}–${autoConfig.workEnd/60|0}:${String(autoConfig.workEnd%60).padStart(2,'0')}, ${autoConfig.totalPeople} persoane`, 'success');
+
+    saveSettings();
 }
+
+// ============================================================
+//  🆕 BUG 1 FIX — Persistență setări
+// ============================================================
+function saveSettings() {
+    try {
+        const data = {
+            floors: inputFloors.value,
+            area: inputArea.value,
+            thermal: inputThermal.value,
+            initTemp: inputInitTemp.value,
+            extTemp: inputExtTemp.value,
+            thermalMass: inputThermalMass ? inputThermalMass.value : '1',
+            simMode: simModeSelect.value,
+            auto: {
+                workStart: document.getElementById('auto-work-start').value,
+                workEnd: document.getElementById('auto-work-end').value,
+                workDays: Array.from(document.querySelectorAll('.day-chk input'))
+                    .filter(c => c.checked)
+                    .map(c => parseInt(c.dataset.day)),
+                tempMin: document.getElementById('auto-temp-min').value,
+                tempMax: document.getElementById('auto-temp-max').value,
+                setback: document.getElementById('auto-setback').value,
+                preheat: document.getElementById('auto-preheat').value,
+                peopleTotal: document.getElementById('auto-people-total').value,
+                peopleDist: document.getElementById('auto-people-dist').value
+            }
+        };
+        localStorage.setItem(PERSIST_KEY, JSON.stringify(data));
+    } catch (e) {
+        console.warn('saveSettings error:', e);
+    }
+}
+
+function loadSettings() {
+    try {
+        const raw = localStorage.getItem(PERSIST_KEY);
+        if (!raw) return;
+        const data = JSON.parse(raw);
+
+        if (data.floors != null) inputFloors.value = data.floors;
+        if (data.area != null) inputArea.value = data.area;
+        if (data.thermal != null) {
+            inputThermal.value = data.thermal;
+            document.getElementById('val-thermal').innerText = data.thermal;
+        }
+        if (data.initTemp != null) inputInitTemp.value = data.initTemp;
+        if (data.extTemp != null) inputExtTemp.value = data.extTemp;
+        if (data.thermalMass != null && inputThermalMass) {
+            inputThermalMass.value = data.thermalMass;
+            thermalMass = parseFloat(data.thermalMass);
+            document.getElementById('val-thermal-mass').innerText = thermalMass.toFixed(2);
+        }
+        if (data.auto) {
+            const a = data.auto;
+            if (a.workStart) document.getElementById('auto-work-start').value = a.workStart;
+            if (a.workEnd) document.getElementById('auto-work-end').value = a.workEnd;
+            if (a.workDays) {
+                document.querySelectorAll('.day-chk input').forEach(chk => {
+                    chk.checked = a.workDays.includes(parseInt(chk.dataset.day));
+                });
+            }
+            if (a.tempMin != null) document.getElementById('auto-temp-min').value = a.tempMin;
+            if (a.tempMax != null) document.getElementById('auto-temp-max').value = a.tempMax;
+            if (a.tempMin != null && a.tempMax != null) {
+                document.getElementById('auto-range-val').innerText =
+                    `${parseFloat(a.tempMin).toFixed(1)} – ${parseFloat(a.tempMax).toFixed(1)} °C`;
+            }
+            if (a.setback != null) {
+                document.getElementById('auto-setback').value = a.setback;
+                document.getElementById('auto-setback-val').innerText = parseFloat(a.setback).toFixed(1);
+            }
+            if (a.preheat != null) {
+                document.getElementById('auto-preheat').value = a.preheat;
+                document.getElementById('auto-preheat-val').innerText = a.preheat;
+            }
+            if (a.peopleTotal != null) {
+                document.getElementById('auto-people-total').value = a.peopleTotal;
+                document.getElementById('auto-people-val').innerText = a.peopleTotal;
+            }
+            if (a.peopleDist) document.getElementById('auto-people-dist').value = a.peopleDist;
+        }
+
+        if (data.simMode) {
+            simModeSelect.value = data.simMode;
+            simModeSelect.dispatchEvent(new Event('change'));
+        }
+
+        readAutoConfigFromUI();
+        autoConfig.isApplied = false;
+
+        // Mesaj în auto-status
+        if (simModeSelect.value === 'auto') {
+            document.getElementById('auto-status').innerHTML =
+                '<span style="color:#f39c12;">⚙️ Configurație restaurată din sesiunea anterioară — apasă „Aplică Configurație" pentru a porni.</span>';
+        }
+    } catch (e) {
+        console.warn('loadSettings error:', e);
+    }
+}
+
+// Bind save la toate inputurile relevante
+(function bindSaveListeners() {
+    const changeIds = [
+        'input-floors', 'input-area', 'input-thermal', 'input-init-temp',
+        'input-ext-temp', 'sim-mode',
+        'auto-work-start', 'auto-work-end', 'auto-temp-min', 'auto-temp-max',
+        'auto-people-dist'
+    ];
+    changeIds.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('change', saveSettings);
+    });
+
+    ['input-thermal-mass', 'auto-setback', 'auto-preheat', 'auto-people-total'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.addEventListener('input', saveSettings);
+            el.addEventListener('change', saveSettings);
+        }
+    });
+
+    document.querySelectorAll('.day-chk input').forEach(chk => {
+        chk.addEventListener('change', saveSettings);
+    });
+})();
 
 // ============================================================
 //  BOOT
 // ============================================================
-setInterval(simulationTick, 100);
+loadSettings();
 generateBuilding();
 logEvent('✓ Sistem inițializat - 3 etaje, 200 m²', 'success');

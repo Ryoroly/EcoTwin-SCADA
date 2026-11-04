@@ -289,3 +289,16 @@ C1 extins	Nivel 2 – Click-to-zoom 3D: camera se centrează pe etajul selectat 
     B2 – „Aplică” vs „live” inconsistent (cosmetic, dar amânat)
 
     B9 – Tavan pe ultimul etaj (nu e bug, dar dacă vreți terasă vizibilă)
+
+
+
+
+
+
+    CE mai trebuie facut :
+    c) Comparație side-by-side manual vs auto
+Rulezi 2 simulări cu aceleași condiții de start (aceeași temp inițială, ext temp, etc.), salvezi ambele, le bifezi în istoric → vezi pe același grafic:
+
+Consum cumulat (deja există)
+
+Diferența procentuală afișată explicit: „Auto: −47% consum"
