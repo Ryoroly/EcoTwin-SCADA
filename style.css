@@ -1,4 +1,9 @@
 * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; }
+
+:root {
+    --fh: 200px;   /* înălțimea etajului - controlată din JS */
+}
+
 body { height: 100vh; display: flex; flex-direction: column; color: #fff; overflow: hidden; }
 .bg-gradient { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: linear-gradient(135deg, #0b111e 0%, #152b45 50%, #094048 100%); z-index: -1; }
 
@@ -51,21 +56,21 @@ body { height: 100vh; display: flex; flex-direction: column; color: #fff; overfl
     background-color: rgba(255, 235, 150, 0.15);
     box-shadow: inset 0 0 80px rgba(255, 235, 100, 0.4), 0 0 50px rgba(255, 235, 100, 0.2);
 }
-.face-top { position: absolute; width: 100%; height: 100%; background: rgba(0, 150, 255, 0.05); border: 1px solid rgba(0, 255, 204, 0.2); transform: translateZ(200px); pointer-events: none; }
+.face-top { position: absolute; width: 100%; height: 100%; background: rgba(0, 150, 255, 0.05); border: 1px solid rgba(0, 255, 204, 0.2); transform: translateZ(var(--fh)); pointer-events: none; }
 
 /* Peretele Frontal (Lățime 350, Înălțime 200) */
 .face-front { 
-    position: absolute; bottom: 0; left: 0; width: 100%; height: 200px; 
+    position: absolute; bottom: 0; left: 0; width: 100%; height: var(--fh); 
     transform-origin: bottom; transform: rotateX(-90deg); 
     background: linear-gradient(180deg, rgba(10,30,50,0.7) 0%, rgba(5,15,25,0.95) 100%);
     border: 1px solid rgba(0, 255, 204, 0.5); border-top: 2px solid #00ffcc;
     display: flex; flex-direction: column; align-items: center; justify-content: space-evenly; 
-    padding: 10px 15px;
+    padding: calc(var(--fh) * 0.05) calc(var(--fh) * 0.075);
 }
 
 /* Peretele Lateral (Lățime 200, Înălțime 350) */
 .face-right { 
-    position: absolute; top: 0; right: 0; width: 200px; height: 350px; 
+    position: absolute; top: 0; right: 0; width: var(--fh); height: 350px; 
     transform-origin: right; transform: rotateY(90deg); 
     background: linear-gradient(180deg, rgba(10,30,50,0.7) 0%, rgba(5,15,25,0.95) 100%);
     border: 1px solid rgba(0, 255, 204, 0.5); border-top: 2px solid #00ffcc;
@@ -74,20 +79,24 @@ body { height: 100vh; display: flex; flex-direction: column; color: #fff; overfl
 
 /* Texte UI Etaj - Ajustate pentru spațiul mai mare */
 .f-header { display: flex; justify-content: space-between; width: 100%; align-items: center; }
-.f-title { font-weight: 700; font-size: 1.1rem; color: #00ffcc; text-transform: uppercase; }
-.f-co2 { font-size: 0.9rem; background: rgba(0,0,0,0.5); padding: 4px 8px; border-radius: 4px; border: 1px solid #777; transition: all 0.3s; }
-.f-co2.warning { color: #ff4757; border-color: #ff4757; box-shadow: 0 0 10px rgba(255, 71, 87, 0.5); }
-.f-temp { font-size: 2rem; font-weight: bold; text-shadow: 0 0 10px rgba(0, 255, 204, 0.8); margin: 10px 0; }
-.f-target { font-size: 0.85rem; color: #aaa; }
-.f-target input { width: 50px; text-align: center; font-weight: bold; padding: 2px; border: 1px solid #00ffcc; background: rgba(0,0,0,0.8); color: white; border-radius: 3px; }
+.f-title { font-weight: 700; font-size: clamp(9px, calc(var(--fh) * 0.055), 18px); color: #00ffcc; text-transform: uppercase; }
+.f-co2 { font-size: clamp(8px, calc(var(--fh) * 0.045), 14px); background: rgba(0,0,0,0.5); padding: 2px 6px; border-radius: 4px; border: 1px solid #777; transition: all 0.3s; }
+.f-temp { font-size: clamp(12px, calc(var(--fh) * 0.1), 32px); font-weight: bold; text-shadow: 0 0 10px rgba(0, 255, 204, 0.8); margin: calc(var(--fh) * 0.03) 0; }
+.f-target { font-size: clamp(8px, calc(var(--fh) * 0.042), 14px); color: #aaa; }
+.f-target input { width: clamp(32px, calc(var(--fh) * 0.25), 50px); text-align: center; font-weight: bold; padding: 2px; border: 1px solid #00ffcc; background: rgba(0,0,0,0.8); color: white; border-radius: 3px; font-size: inherit; }
 
 /* Controale Oameni */
-.f-people { display: flex; width: 100%; align-items: center; gap: 10px; font-size: 0.9rem; background: rgba(255,255,255,0.05); padding: 8px; border-radius: 4px;}
+.f-people { display: flex; width: 100%; align-items: center; gap: 6px; font-size: clamp(8px, calc(var(--fh) * 0.045), 14px); background: rgba(255,255,255,0.05); padding: calc(var(--fh) * 0.03); border-radius: 4px; }
 .f-people input[type="range"] { flex: 1; accent-color: #f39c12; }
 .f-people input:disabled { opacity: 0.3; }
 
 /* Ventilația HVAC Principală - Mărită */
-.vent-grill { width: 120px; height: 240px; border: 2px solid #333; background: #000; border-radius: 8px; position: relative; overflow: hidden; box-shadow: inset 0 0 20px #000; }
+.vent-grill { 
+    width: calc(var(--fh) * 0.6); 
+    height: calc(var(--fh) * 1.2); 
+    border: 2px solid #333; background: #000; border-radius: 8px; 
+    position: relative; overflow: hidden; box-shadow: inset 0 0 20px #000; 
+}
 .vent-air { position: absolute; bottom: -100%; left: 0; width: 100%; height: 200%; opacity: 0.9; transition: opacity 0.3s; }
 
 /* Stări HVAC */

@@ -60,7 +60,24 @@ function generateBuilding() {
     buildingContainer.innerHTML = '';
     floorsData = [];
 
-    const floorHeight = 200; 
+        // === SCALING DINAMIC ===
+    // 1-7 etaje: păstrează 200px/etaj (aspect actual)
+    // Peste 7: scade progresiv până la 100px/etaj (minim lizibil)
+    const MAX_VISUAL_HEIGHT = 1400;
+    const MIN_FLOOR_HEIGHT = 100;
+    const MAX_FLOOR_HEIGHT = 200;
+    const floorHeight = Math.max(
+        MIN_FLOOR_HEIGHT,
+        Math.min(MAX_FLOOR_HEIGHT, MAX_VISUAL_HEIGHT / numFloors)
+    );
+
+    // Setează variabila CSS (moștenită de toate fețele)
+    buildingContainer.style.setProperty('--fh', floorHeight + 'px');
+
+    // Ajustează perspectiva proporțional (clădiri înalte = perspectivă mai mare)
+    const perspective = Math.max(2500, 1500 + numFloors * 120);
+    document.getElementById('building-wrapper').style.perspective = perspective + 'px';
+
     const zOffset = -((numFloors - 1) * floorHeight);
     buildingContainer.style.transform = `rotateX(65deg) rotateZ(-40deg) translateZ(${zOffset}px)`;
 
