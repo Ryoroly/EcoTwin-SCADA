@@ -473,7 +473,7 @@ function simulationTick() {
         exhaustPower = (extractionEffort / 100) * 1.2 * areaMultiplier; 
         
         // Impact termic acumulat (va fi plafonat mai jos)
-        ventTempDelta += (extTemp - floor.currentTemp) * (extractionEffort / 100) * 0.005;
+        ventTempDelta += (extTemp - floor.currentTemp) * (extractionEffort / 100) * 0.002;
     }
     if (floor.co2 < 400) floor.co2 = 400;
 
@@ -505,11 +505,11 @@ function simulationTick() {
     let hvacPower = 0.1 * areaMultiplier; // Standby
 
     if (intensity > 0) {
-        floor.currentTemp += 0.08 * intensity;
+        floor.currentTemp += 0.15 * intensity;
         hvacPower += 2.0 * areaMultiplier * intensity;
         floor.co2 -= 5 * intensity;
     } else if (intensity < 0) {
-        floor.currentTemp += 0.08 * intensity;   // negative → răcește
+        floor.currentTemp += 0.10 * intensity;   // negative → răcește
         hvacPower += 2.5 * areaMultiplier * (-intensity);
         floor.co2 -= 5 * (-intensity);
     } else if (floor.hvacState === 'ventilating') {
