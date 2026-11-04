@@ -132,6 +132,7 @@
             <table id="history-table">
                 <thead>
                     <tr>
+                        <th style="width: 30px;"></th>
                         <th>Dată & Oră</th>
                         <th>Mod Simulare</th>
                         <th>Timp Simulat</th>
@@ -145,6 +146,17 @@
                 </tbody>
             </table>
         </div>
+
+        <!-- Chart Comparison -->
+        <div id="chart-container" style="margin-top: 25px;">
+            <h3 style="color: #00ffcc; margin-bottom: 12px; font-size: 1rem;">📈 Comparație Consum (kWh vs. Timp Virtual)</h3>
+            <div id="chart-empty" class="chart-empty">
+                Bifează 1–4 scenarii din tabel pentru a vedea graficul comparativ.
+            </div>
+            <canvas id="history-chart" style="display: none;"></canvas>
+            <div id="chart-legend" class="chart-legend"></div>
+        </div>
+
         <button id="btn-clear-history" class="glass-btn danger" style="margin-top: 20px;">🗑️ Șterge Istoricul</button>
     </div>
     </div>

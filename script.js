@@ -7,6 +7,8 @@ let wasRunningBeforeFire = false;
 
 let selectedFloorIndex = null;
 
+let selectedScenarios = new Set();  // IDs de scenarii bifate pentru grafic
+
 let energyHistory = [{ min: 0, kwh: 0 }];
 
 const speeds = [1, 5, 15, 60, 120]; 
@@ -684,6 +686,7 @@ function saveToHistory() {
     const targetsMap = floorsData.map(f => f.targetTemp);
     
     const newRecord = {
+        id: Date.now() + '-' + Math.random().toString(36).slice(2, 8),
         date: new Date().toLocaleString('ro-RO'),
         mode: simModeSelect.value === 'auto' ? 'Auto (AI)' : 'Manual',
         time: formatTime(simulatedMinutes),
@@ -713,7 +716,11 @@ function saveToHistory() {
 
 window.deleteRecord = function(index) {
     let history = JSON.parse(localStorage.getItem('ecoTwinHistory')) || [];
-    history.splice(index, 1);
+    const removed = history.splice(index, 1);
+    if (removed[0]) {
+        const recId = removed[0].id || `legacy-${index}`;
+        selectedScenarios.delete(recId);
+    }
     localStorage.setItem('ecoTwinHistory', JSON.stringify(history));
     renderHistory();
 };
@@ -723,36 +730,207 @@ function renderHistory() {
     historyBody.innerHTML = '';
     
     if (history.length === 0) {
-        historyBody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#aaa;">Nicio simulare salvată încă. Rulează o simulare și apasă Reset.</td></tr>';
+        historyBody.innerHTML = '<tr><td colspan="7" style="text-align:center; color:#aaa;">Nicio simulare salvată încă. Rulează o simulare și apasă Reset.</td></tr>';
+        drawChart([]);
         return;
     }
 
     history.forEach((record, index) => {
-    const modeColor = record.mode === 'Auto (AI)' ? '#00ffcc' : 'white';
+        const recId = record.id || `legacy-${index}`;
+        const hasSeries = record.energySeries && record.energySeries.length > 1;
+        const isChecked = selectedScenarios.has(recId) ? 'checked' : '';
+        const disabled = hasSeries ? '' : 'disabled title="Înregistrare veche - fără serie temporală"';
+        const modeColor = record.mode === 'Auto (AI)' ? '#00ffcc' : 'white';
+        
+        const totalPeople = (record.occupancyMap || []).reduce((a, b) => a + b, 0);
+        const peopleInfo = totalPeople > 0 ? `👥 ${totalPeople}` : '';
+        const extTempInfo = record.extTemp !== undefined ? `🌡 ${record.extTemp}°C` : '';
+        const extraInfo = [peopleInfo, extTempInfo].filter(x => x).join(' · ');
+        const settingsDisplay = extraInfo 
+            ? `${record.settings}<br><span style="font-size:0.78em; color:#888;">${extraInfo}</span>`
+            : record.settings;
+        
+        historyBody.innerHTML += `
+            <tr>
+                <td style="text-align:center;">
+                    <input type="checkbox" class="history-check" data-rec-id="${recId}" ${isChecked} ${disabled}>
+                </td>
+                <td>${record.date}</td>
+                <td style="color: ${modeColor}; font-weight:bold;">${record.mode}</td>
+                <td>${record.time}</td>
+                <td style="color: #ff9f43; font-weight:bold;">${record.energy}</td>
+                <td>${settingsDisplay}</td>
+                <td style="text-align:center;">
+                    <button class="btn-delete-row" onclick="deleteRecord(${index})" title="Șterge scenariu">🗑️</button>
+                </td>
+            </tr>
+        `;
+    });
     
-    // Extragem info suplimentară (backward-compatible cu înregistrări vechi)
-    const totalPeople = (record.occupancyMap || []).reduce((a, b) => a + b, 0);
-    const peopleInfo = totalPeople > 0 ? `👥 ${totalPeople}` : '';
-    const extTempInfo = record.extTemp !== undefined ? `🌡 ${record.extTemp}°C` : '';
-    const extraInfo = [peopleInfo, extTempInfo].filter(x => x).join(' · ');
-    const settingsDisplay = extraInfo 
-        ? `${record.settings}<br><span style="font-size:0.78em; color:#888;">${extraInfo}</span>`
-        : record.settings;
+    // Wire up checkboxes
+    document.querySelectorAll('.history-check').forEach(chk => {
+        chk.addEventListener('change', (e) => {
+            const recId = e.target.dataset.recId;
+            if (e.target.checked) {
+                if (selectedScenarios.size >= 4) {
+                    e.target.checked = false;
+                    return;
+                }
+                selectedScenarios.add(recId);
+            } else {
+                selectedScenarios.delete(recId);
+            }
+            drawChart(history);
+        });
+    });
     
-    historyBody.innerHTML += `
-        <tr>
-            <td>${record.date}</td>
-            <td style="color: ${modeColor}; font-weight:bold;">${record.mode}</td>
-            <td>${record.time}</td>
-            <td style="color: #ff9f43; font-weight:bold;">${record.energy}</td>
-            <td>${settingsDisplay}</td>
-            <td style="text-align:center;">
-                <button class="btn-delete-row" onclick="deleteRecord(${index})" title="Șterge scenariu">🗑️</button>
-            </td>
-        </tr>
-    `;
-});
+    drawChart(history);
 }
+
+// === GRAFIC COMPARAȚIE ===
+function formatChartTime(mins) {
+    const h = Math.floor(mins / 60);
+    if (h >= 24) return Math.floor(h / 24) + 'z ' + (h % 24) + 'h';
+    return h + 'h';
+}
+
+function drawChart(history) {
+    const canvas = document.getElementById('history-chart');
+    const emptyEl = document.getElementById('chart-empty');
+    const legendEl = document.getElementById('chart-legend');
+    const ctx = canvas.getContext('2d');
+    
+    // Selectează scenariile bifate, în ordinea din istoric (culori stabile)
+    const selectedRecords = [];
+    history.forEach((record, index) => {
+        const recId = record.id || `legacy-${index}`;
+        if (selectedScenarios.has(recId) && record.energySeries && record.energySeries.length > 1) {
+            selectedRecords.push(record);
+        }
+    });
+    
+    legendEl.innerHTML = '';
+    
+    if (selectedRecords.length === 0) {
+        canvas.style.display = 'none';
+        emptyEl.style.display = 'block';
+        return;
+    }
+    
+    canvas.style.display = 'block';
+    emptyEl.style.display = 'none';
+    
+    // Setează dimensiunea cu suport retina
+    const rect = canvas.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    const w = rect.width;
+    const h = 320;
+    canvas.width = w * dpr;
+    canvas.height = h * dpr;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, w, h);
+    
+    // Padding plot
+    const pad = { top: 20, right: 25, bottom: 40, left: 65 };
+    const plotW = w - pad.left - pad.right;
+    const plotH = h - pad.top - pad.bottom;
+    
+    // Găsește maximele
+    let maxTime = 0, maxKwh = 0;
+    selectedRecords.forEach(r => {
+        r.energySeries.forEach(p => {
+            if (p.min > maxTime) maxTime = p.min;
+            if (p.kwh > maxKwh) maxKwh = p.kwh;
+        });
+    });
+    maxTime = Math.max(1, maxTime);
+    maxKwh = Math.max(0.1, maxKwh * 1.1); // +10% headroom
+    
+    const xScale = (min) => pad.left + (min / maxTime) * plotW;
+    const yScale = (kwh) => pad.top + plotH - (kwh / maxKwh) * plotH;
+    
+    // Fundal plot
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.fillRect(pad.left, pad.top, plotW, plotH);
+    
+    // Grid + labels Y
+    ctx.strokeStyle = 'rgba(0, 255, 204, 0.12)';
+    ctx.lineWidth = 1;
+    ctx.fillStyle = '#888';
+    ctx.font = '11px Segoe UI, sans-serif';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    
+    for (let i = 0; i <= 5; i++) {
+        const kwh = (maxKwh / 5) * i;
+        const y = yScale(kwh);
+        ctx.beginPath();
+        ctx.moveTo(pad.left, y);
+        ctx.lineTo(w - pad.right, y);
+        ctx.stroke();
+        ctx.fillText(kwh.toFixed(1) + ' kWh', pad.left - 8, y);
+    }
+    
+    // Grid + labels X
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    for (let i = 0; i <= 5; i++) {
+        const min = (maxTime / 5) * i;
+        const x = xScale(min);
+        ctx.beginPath();
+        ctx.moveTo(x, pad.top);
+        ctx.lineTo(x, h - pad.bottom);
+        ctx.stroke();
+        ctx.fillText(formatChartTime(min), x, h - pad.bottom + 8);
+    }
+    
+    // Linii scenarii
+    const colors = ['#00ffcc', '#ff9f43', '#9b59b6', '#2ecc71', '#e74c3c', '#3498db'];
+    
+    selectedRecords.forEach((record, idx) => {
+        const color = colors[idx % colors.length];
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2.5;
+        ctx.lineJoin = 'round';
+        ctx.lineCap = 'round';
+        ctx.shadowColor = color;
+        ctx.shadowBlur = 8;
+        
+        ctx.beginPath();
+        record.energySeries.forEach((p, i) => {
+            const x = xScale(p.min);
+            const y = yScale(p.kwh);
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+        
+        // Punct final
+        const last = record.energySeries[record.energySeries.length - 1];
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(xScale(last.min), yScale(last.kwh), 4, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Legend entry
+        legendEl.innerHTML += `
+            <div class="legend-item">
+                <div class="legend-swatch" style="background:${color}; box-shadow: 0 0 8px ${color};"></div>
+                <span><b style="color:${color}">${record.mode}</b> · ${record.date.slice(0, 16)} · <b>${record.energy}</b></span>
+            </div>
+        `;
+    });
+}
+
+// Redraw la resize fereastră (dacă modalul e deschis)
+window.addEventListener('resize', () => {
+    if (!modalHistory.classList.contains('hidden')) {
+        const history = JSON.parse(localStorage.getItem('ecoTwinHistory')) || [];
+        drawChart(history);
+    }
+});
 
 btnHistory.addEventListener('click', () => { renderHistory(); modalHistory.classList.remove('hidden'); });
 
@@ -765,6 +943,7 @@ document.getElementById('btn-clear-history').addEventListener('click', async () 
     });
     if (!ok) return;
     localStorage.removeItem('ecoTwinHistory');
+    selectedScenarios.clear();
     renderHistory();
 });
 
