@@ -267,7 +267,7 @@ floorsData.forEach((floor) => {
     // Oamenii generează CO2 și căldură
     if (floor.hasPeople) {
         floor.co2 += currentOccupants * 1.5; 
-        floor.currentTemp += currentOccupants * 0.001; 
+        floor.currentTemp += currentOccupants * 0.0003;
     } else {
         floor.co2 -= 0.5; // Scădere naturală (aerisire pasivă)
     }
@@ -293,31 +293,43 @@ floorsData.forEach((floor) => {
     }
     if (floor.co2 < 400) floor.co2 = 400;
 
-    // B. Logica Termică (HVAC Principal pe peretele drept)
+        // B. Logica Termică (HVAC - INTENSITATE CONTINUĂ, fără salturi la prag)
     let diff = floor.targetTemp - floor.currentTemp;
-    
-    if (diff < -0.8) {
-        floor.hvacState = 'cooling'; 
-    } else if (diff > 0.8) {
-        floor.hvacState = 'heating'; 
-    } else if (floor.co2 > 1200) {
-        floor.hvacState = 'ventilating'; 
-    } else if (Math.abs(diff) <= 0.5 && floor.co2 < 900) {
-        floor.hvacState = 'maintaining'; 
+    const DEADBAND = 0.05;    // sub această abatere, HVAC stă pe standby
+    const FULL_POWER_AT = 0.55; // intensitate 100% la 0.05+0.55=0.60°C abatere
+
+    // Intensitate continuă: 0 la prag, crește liniar, saturație la 1
+    let intensity = 0;
+    if (diff > DEADBAND) {
+        intensity = Math.min(1, (diff - DEADBAND) / FULL_POWER_AT);
+    } else if (diff < -DEADBAND) {
+        intensity = -Math.min(1, (-diff - DEADBAND) / FULL_POWER_AT);
     }
 
+    // Stare doar pentru feedback vizual (culoare, animație)
+    if (floor.co2 > 1200 && Math.abs(intensity) < 0.3) {
+        floor.hvacState = 'ventilating';
+    } else if (intensity > 0.005) {
+        floor.hvacState = 'heating';
+    } else if (intensity < -0.005) {
+        floor.hvacState = 'cooling';
+    } else {
+        floor.hvacState = 'maintaining';
+    }
+
+    // Putere proporțională (0% la prag, 100% la 0.6°C abatere)
     let hvacPower = 0.1 * areaMultiplier; // Standby
-    
-    if (floor.hvacState === 'heating') {
-        floor.currentTemp += 0.08; 
-        hvacPower = 2.0 * areaMultiplier; 
-        floor.co2 -= 5;
-    } else if (floor.hvacState === 'cooling') {
-        floor.currentTemp -= 0.08;
-        hvacPower = 2.5 * areaMultiplier; 
-        floor.co2 -= 5;
+
+    if (intensity > 0) {
+        floor.currentTemp += 0.08 * intensity;
+        hvacPower += 2.0 * areaMultiplier * intensity;
+        floor.co2 -= 5 * intensity;
+    } else if (intensity < 0) {
+        floor.currentTemp += 0.08 * intensity;   // negative → răcește
+        hvacPower += 2.5 * areaMultiplier * (-intensity);
+        floor.co2 -= 5 * (-intensity);
     } else if (floor.hvacState === 'ventilating') {
-        hvacPower = 1.5 * areaMultiplier; 
+        hvacPower = 1.5 * areaMultiplier;
         floor.co2 -= 40;
         ventTempDelta += (extTemp - floor.currentTemp) * 0.01;
     }
