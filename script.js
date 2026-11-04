@@ -1,6 +1,7 @@
 let isRunning = false;
 let totalEnergy = 0; // kWh
 let simulatedMinutes = 0;
+let energyHistory = [{ min: 0, kwh: 0 }];
 
 const speeds = [1, 5, 15, 60, 120]; 
 let speedIndex = 0;
@@ -277,7 +278,7 @@ function simulationTick() {
         for (let i = 0; i < numFloors; i++) floorsData[i].currentTemp = newTemps[i];
 
         // 2. METABOLISM & CONTROL SEPARAT (HVAC vs EVACUARE LOCALĂ)
-floorsData.forEach((floor) => {
+    floorsData.forEach((floor) => {
     
     let currentOccupants = floor.hasPeople ? floor.peopleCount : 0;
 
@@ -361,7 +362,12 @@ floorsData.forEach((floor) => {
     floor.lastPower = totalFloorPower; 
     currentInstantPower += totalFloorPower;
     tickEnergy += totalFloorPower; 
-});
+        });
+    // D9: Sample serie temporală la fiecare 30 min virtuale
+        if (simulatedMinutes % 30 === 0) {
+            const runningTotal = totalEnergy + tickEnergy / 60;
+            energyHistory.push({ min: simulatedMinutes, kwh: runningTotal });
+        }
     }
 
     // 3. UPDATE UI LENT
@@ -396,7 +402,10 @@ floorsData.forEach((floor) => {
     displayEnergy.innerText = totalEnergy.toFixed(2);
 }
 
-document.getElementById('btn-apply-settings').addEventListener('click', generateBuilding);
+document.getElementById('btn-apply-settings').addEventListener('click', () => {
+    energyHistory = [{ min: 0, kwh: 0 }];
+    generateBuilding();
+});
 
 btnStart.addEventListener('click', () => {
     isRunning = !isRunning;
@@ -426,6 +435,7 @@ document.getElementById('btn-reset').addEventListener('click', async () => {
     btnStart.classList.remove('highlight');
     totalEnergy = 0;
     simulatedMinutes = 0;
+    energyHistory = [{ min: 0, kwh: 0 }]; // reset serie temporală
     displayEnergy.innerText = "0.00";
     displayTime.innerText = "0 Zile, 0 Ore";
     displayInstantPower.innerText = "0.00 kW";
@@ -437,14 +447,36 @@ document.getElementById('btn-reset').addEventListener('click', async () => {
 // === LOGICA PENTRU ISTORIC & COMPARAȚII ===
 function saveToHistory() {
     let history = JSON.parse(localStorage.getItem('ecoTwinHistory')) || [];
+    
+    // D2: Capturăm contextul complet al scenariului
+    const occupancyMap = floorsData.map(f => f.hasPeople ? f.peopleCount : 0);
+    const targetsMap = floorsData.map(f => f.targetTemp);
+    
     const newRecord = {
         date: new Date().toLocaleString('ro-RO'),
         mode: simModeSelect.value === 'auto' ? 'Auto (AI)' : 'Manual',
         time: formatTime(simulatedMinutes),
+        timeMinutes: simulatedMinutes,        // pentru grafic (axa X)
         energy: totalEnergy.toFixed(2) + ' kWh',
-        settings: `${inputFloors.value} Etaje, ${inputArea.value} m²`
+        energyValue: totalEnergy,             // pentru grafic (axa Y)
+        settings: `${inputFloors.value} Etaje, ${inputArea.value} m²`,
+        // Context scenariu (D2)
+        floors: parseInt(inputFloors.value),
+        area: getValidNumber(inputArea, 200, 50, 2000),
+        extTemp: getValidNumber(inputExtTemp, 5, -30, 50),
+        initTemp: getValidNumber(inputInitTemp, 10, -20, 50),
+        thermalCoeff: parseFloat(inputThermal.value),
+        occupancyMap: occupancyMap,
+        targetsMap: targetsMap,
+        // D9: Serie temporală
+        energySeries: energyHistory.slice()
     };
+    
     history.unshift(newRecord);
+    
+    // Limită: max 50 scenarii (previne QuotaExceededError pe localStorage)
+    history = history.slice(0, 50);
+    
     localStorage.setItem('ecoTwinHistory', JSON.stringify(history));
 }
 
@@ -465,20 +497,30 @@ function renderHistory() {
     }
 
     history.forEach((record, index) => {
-        const modeColor = record.mode === 'Auto (AI)' ? '#00ffcc' : 'white';
-        historyBody.innerHTML += `
-            <tr>
-                <td>${record.date}</td>
-                <td style="color: ${modeColor}; font-weight:bold;">${record.mode}</td>
-                <td>${record.time}</td>
-                <td style="color: #ff9f43; font-weight:bold;">${record.energy}</td>
-                <td>${record.settings}</td>
-                <td style="text-align:center;">
-                    <button class="btn-delete-row" onclick="deleteRecord(${index})" title="Șterge scenariu">🗑️</button>
-                </td>
-            </tr>
-        `;
-    });
+    const modeColor = record.mode === 'Auto (AI)' ? '#00ffcc' : 'white';
+    
+    // Extragem info suplimentară (backward-compatible cu înregistrări vechi)
+    const totalPeople = (record.occupancyMap || []).reduce((a, b) => a + b, 0);
+    const peopleInfo = totalPeople > 0 ? `👥 ${totalPeople}` : '';
+    const extTempInfo = record.extTemp !== undefined ? `🌡 ${record.extTemp}°C` : '';
+    const extraInfo = [peopleInfo, extTempInfo].filter(x => x).join(' · ');
+    const settingsDisplay = extraInfo 
+        ? `${record.settings}<br><span style="font-size:0.78em; color:#888;">${extraInfo}</span>`
+        : record.settings;
+    
+    historyBody.innerHTML += `
+        <tr>
+            <td>${record.date}</td>
+            <td style="color: ${modeColor}; font-weight:bold;">${record.mode}</td>
+            <td>${record.time}</td>
+            <td style="color: #ff9f43; font-weight:bold;">${record.energy}</td>
+            <td>${settingsDisplay}</td>
+            <td style="text-align:center;">
+                <button class="btn-delete-row" onclick="deleteRecord(${index})" title="Șterge scenariu">🗑️</button>
+            </td>
+        </tr>
+    `;
+});
 }
 
 btnHistory.addEventListener('click', () => { renderHistory(); modalHistory.classList.remove('hidden'); });
