@@ -39,7 +39,20 @@ function getValidNumber(inputEl, fallback, min = -100, max = 10000) {
 }
 
 function generateBuilding() {
-    const numFloors = Math.floor(getValidNumber(inputFloors, 3, 1, 10000));
+    const rawFloors = parseFloat(inputFloors.value);
+    const numFloors = Math.floor(getValidNumber(inputFloors, 3, 1, 30));
+    
+    if (!isNaN(rawFloors) && rawFloors > 30) {
+        displayStatus.innerText = `⚠️ Maxim 30 etaje (ai introdus ${rawFloors})`;
+        displayStatus.style.color = "#ff9f43";
+        setTimeout(() => {
+            if (!isRunning) {
+                displayStatus.innerText = "Pauză";
+                displayStatus.style.color = "#ff9f43";
+            }
+        }, 2500);
+    }
+    
     inputFloors.value = numFloors; 
     const initTemp = getValidNumber(inputInitTemp, 10, -20, 50);
     inputInitTemp.value = initTemp;
