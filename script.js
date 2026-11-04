@@ -169,6 +169,43 @@ function formatTime(mins) {
     return `${d} Zile, ${h} Ore`;
 }
 
+// === MODAL CONFIRMARE REUTILIZABIL ===
+function showConfirm({ title, body, okLabel = '✓ Confirmă', cancelLabel = 'Anulează' }) {
+    return new Promise((resolve) => {
+        const modal = document.getElementById('confirm-modal');
+        const titleEl = document.getElementById('confirm-title');
+        const bodyEl = document.getElementById('confirm-body');
+        const okBtn = document.getElementById('confirm-ok');
+        const cancelBtn = document.getElementById('confirm-cancel');
+
+        titleEl.innerText = title;
+        bodyEl.innerHTML = body;
+        okBtn.innerText = okLabel;
+        cancelBtn.innerText = cancelLabel;
+        modal.classList.remove('hidden');
+
+        const cleanup = () => {
+            modal.classList.add('hidden');
+            okBtn.removeEventListener('click', onOk);
+            cancelBtn.removeEventListener('click', onCancel);
+            modal.removeEventListener('click', onBackdrop);
+            document.removeEventListener('keydown', onKey);
+        };
+        const onOk = () => { cleanup(); resolve(true); };
+        const onCancel = () => { cleanup(); resolve(false); };
+        const onBackdrop = (e) => { if (e.target === modal) onCancel(); };
+        const onKey = (e) => {
+            if (e.key === 'Escape') onCancel();
+            if (e.key === 'Enter') onOk();
+        };
+
+        okBtn.addEventListener('click', onOk);
+        cancelBtn.addEventListener('click', onCancel);
+        modal.addEventListener('click', onBackdrop);
+        document.addEventListener('keydown', onKey);
+    });
+}
+
 function simulationTick() {
     if (!isRunning) return;
 
@@ -325,17 +362,18 @@ btnStart.addEventListener('click', () => {
     displayStatus.style.color = isRunning ? '#00ffcc' : '#ff9f43';
 });
 
-document.getElementById('btn-reset').addEventListener('click', () => {
-    const MIN_MINUTES_TO_SAVE = 60; // 1h virtual
+document.getElementById('btn-reset').addEventListener('click', async () => {
+    const MIN_MINUTES_TO_SAVE = 60;
 
-    // Dacă simularea a rulat suficient, cere confirmare + salvează
     if (simulatedMinutes >= MIN_MINUTES_TO_SAVE) {
-        const ok = confirm(
-            `Simularea a rulat ${formatTime(simulatedMinutes)}.\n` +
-            `Consum total: ${totalEnergy.toFixed(2)} kWh.\n\n` +
-            `Dorești să salvezi în istoric și să resetezi?`
-        );
-        if (!ok) return; // utilizatorul a apăsat Cancel → nu facem nimic
+        const ok = await showConfirm({
+            title: '⚠️ Salvare Scenariu',
+            body: `Simularea a rulat <b style="color:#00ffcc">${formatTime(simulatedMinutes)}</b> și a consumat <b style="color:#ff9f43">${totalEnergy.toFixed(2)} kWh</b>.<br><br>` +
+                  `Dorești să salvezi acest scenariu în istoric înainte de resetare?`,
+            okLabel: '💾 Salvează & Resetează',
+            cancelLabel: 'Anulează'
+        });
+        if (!ok) return;
         saveToHistory();
     }
 
@@ -400,6 +438,19 @@ function renderHistory() {
 }
 
 btnHistory.addEventListener('click', () => { renderHistory(); modalHistory.classList.remove('hidden'); });
+
+document.getElementById('btn-clear-history').addEventListener('click', async () => {
+    const ok = await showConfirm({
+        title: '⚠️ Ștergere Istoric',
+        body: `Sigur dorești să ștergi <b style="color:#ff4757">întregul istoric</b> de scenarii?<br>Această acțiune nu poate fi anulată.`,
+        okLabel: '🗑️ Șterge tot',
+        cancelLabel: 'Anulează'
+    });
+    if (!ok) return;
+    localStorage.removeItem('ecoTwinHistory');
+    renderHistory();
+});
+
 btnCloseModal.addEventListener('click', () => { modalHistory.classList.add('hidden'); });
 modalHistory.addEventListener('click', (e) => { if (e.target === modalHistory) modalHistory.classList.add('hidden'); });
 

@@ -196,3 +196,40 @@ body { height: 100vh; display: flex; flex-direction: column; color: #fff; overfl
 @keyframes spinFan {
     100% { transform: rotate(360deg); }
 }
+
+/* === MODAL CONFIRMARE GENERIC === */
+.confirm-modal-content {
+    max-width: 520px;
+    width: 90%;
+    border-top: 3px solid #ff9f43;
+    padding: 25px 30px;
+    animation: modalPop 0.25s ease;
+}
+
+.confirm-body {
+    line-height: 1.8;
+    font-size: 1rem;
+    color: #e0e0e0;
+    margin-bottom: 25px;
+}
+
+.confirm-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+}
+
+.confirm-ok-btn {
+    background: rgba(0, 255, 204, 0.2);
+    border-color: #00ffcc;
+    font-weight: bold;
+}
+
+.confirm-ok-btn:hover {
+    background: rgba(0, 255, 204, 0.35);
+}
+
+@keyframes modalPop {
+    from { transform: scale(0.92); opacity: 0; }
+    to   { transform: scale(1);    opacity: 1; }
+}
