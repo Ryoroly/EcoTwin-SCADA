@@ -555,3 +555,25 @@ body { height: 100vh; display: flex; flex-direction: column; color: #fff; overfl
     to   { opacity: 1; transform: translateX(0); }
 }
 
+/* === AUTO CONFIG PANEL === */
+.day-picker { display: flex; gap: 5px; flex-wrap: wrap; }
+.day-chk {
+    padding: 6px 10px;
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.day-chk:has(input:checked) {
+    background: rgba(0, 255, 204, 0.25);
+    border-color: #00ffcc;
+    color: #00ffcc;
+}
+.day-chk input { accent-color: #00ffcc; margin: 0; }
+
+.hidden { display: none !important; }

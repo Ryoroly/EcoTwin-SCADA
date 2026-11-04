@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>EcoTwin - Clădire 3D Corectată</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏢</text></svg>">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -17,7 +18,6 @@
                 <span id="speed-display">Viteză: 1x</span>
                 <button id="btn-speed-up" class="glass-btn icon-btn" title="Mai rapid">⏩</button>
             </div>
-            
             <button id="btn-start" class="glass-btn">▶ Start Simulare</button>
             <button id="btn-reset" class="glass-btn danger">Reset & Pauză</button>
             <button id="btn-fire" class="glass-btn fire-btn" title="Simulare Incendiu">🚨 INCENDIU</button>
@@ -32,47 +32,45 @@
         <section class="left-panel">
             <h2 class="panel-title">Monitorizare Clădire 3D</h2>
             <div id="building-wrapper">
-                <div id="building-container">
-                    <!-- Etajele se generează aici -->
-                </div>
+                <div id="building-container"></div>
             </div>
             <div class="event-log-panel glass-panel island">
-        <div class="event-log-header">
-            <h3>📋 Log Evenimente</h3>
-            <button id="btn-clear-log" class="glass-btn" style="padding: 4px 12px; font-size: 0.75rem;">Golește</button>
-        </div>
-        <div id="event-log" class="event-log-list"></div>
-    </div>
+                <div class="event-log-header">
+                    <h3>📋 Log Evenimente</h3>
+                    <button id="btn-clear-log" class="glass-btn" style="padding: 4px 12px; font-size: 0.75rem;">Golește</button>
+                </div>
+                <div id="event-log" class="event-log-list"></div>
+            </div>
         </section>
 
         <!-- Partea Dreaptă -->
         <section class="right-panel">
-                <!-- Floor Detail Panel (apare la click pe etaj) -->
-    <div id="floor-detail-panel" class="controls-general glass-panel island floor-panel-hidden">
-        <div class="floor-detail-header">
-            <h2 style="margin:0;">🏢 <span id="floor-detail-title">NIVEL 1</span></h2>
-            <button id="floor-detail-close" class="glass-btn" title="Închide">✕</button>
-        </div>
-        <div class="floor-detail-stats">
-            <div class="detail-row"><span>🌡 Temperatură</span><b id="detail-temp">22.0°C</b></div>
-            <div class="detail-row"><span>💨 CO2</span><b id="detail-co2">400 ppm</b></div>
-            <div class="detail-row"><span>⚡ Consum</span><b id="detail-power">0.00 kW</b></div>
-            <div class="detail-row"><span>❄ Stare HVAC</span><b id="detail-hvac">Menține</b></div>
-        </div>
-        <div class="control-group" style="margin-top: 15px;">
-            <label>Țintă temperatură: <span id="detail-target-val" style="color:#00ffcc">22.0</span>°C</label>
-            <input type="range" id="detail-target" min="10" max="35" step="0.5" value="22">
-        </div>
-        <div class="control-group">
-            <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
-                <input type="checkbox" id="detail-occupied" style="accent-color:#f39c12;"> Ocupat
-            </label>
-        </div>
-        <div class="control-group">
-            <label>Persoane: <span id="detail-people-val" style="color:#f39c12">0</span></label>
-            <input type="range" id="detail-people" min="0" max="50" value="10" disabled>
-        </div>
-    </div>
+            <div id="floor-detail-panel" class="controls-general glass-panel island floor-panel-hidden">
+                <div class="floor-detail-header">
+                    <h2 style="margin:0;">🏢 <span id="floor-detail-title">NIVEL 1</span></h2>
+                    <button id="floor-detail-close" class="glass-btn" title="Închide">✕</button>
+                </div>
+                <div class="floor-detail-stats">
+                    <div class="detail-row"><span>🌡 Temperatură</span><b id="detail-temp">22.0°C</b></div>
+                    <div class="detail-row"><span>💨 CO2</span><b id="detail-co2">400 ppm</b></div>
+                    <div class="detail-row"><span>⚡ Consum</span><b id="detail-power">0.00 kW</b></div>
+                    <div class="detail-row"><span>❄ Stare HVAC</span><b id="detail-hvac">Menține</b></div>
+                </div>
+                <div class="control-group" style="margin-top: 15px;">
+                    <label>Țintă temperatură: <span id="detail-target-val" style="color:#00ffcc">22.0</span>°C</label>
+                    <input type="range" id="detail-target" min="10" max="35" step="0.5" value="22">
+                </div>
+                <div class="control-group">
+                    <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                        <input type="checkbox" id="detail-occupied" style="accent-color:#f39c12;"> Ocupat
+                    </label>
+                </div>
+                <div class="control-group">
+                    <label>Persoane: <span id="detail-people-val" style="color:#f39c12">0</span></label>
+                    <input type="range" id="detail-people" min="0" max="50" value="10" disabled>
+                </div>
+            </div>
+
             <div class="stats-top glass-panel island">
                 <h2>📊 Statistici Live</h2>
                 <div class="stat-box">
@@ -86,7 +84,7 @@
             <div class="controls-general glass-panel island">
                 <h2>🏢 Setări Generale Clădire</h2>
                 <div class="control-group">
-                    <label>Număr etaje:</label>      
+                    <label>Număr etaje:</label>
                     <input type="number" id="input-floors" class="glass-input" value="3" min="1" max="30">
                 </div>
                 <div class="control-group">
@@ -117,73 +115,146 @@
                         <option value="auto">Auto (Optimizat AI)</option>
                     </select>
                 </div>
-                <!-- 🆕 Masă termică (inerție pereți) -->
                 <div class="control-group">
                     <label>Masă termică pereți (inerție): <span id="val-thermal-mass" style="color:#00ffcc;">1.0</span>x</label>
                     <input type="range" id="input-thermal-mass" min="0.5" max="5" step="0.25" value="1">
                 </div>
             </div>
+
+            <!-- Panou Auto (ascuns până selectezi Auto) -->
+            <div id="auto-config-panel" class="controls-general glass-panel island hidden"
+                 style="border-top: 3px solid #00ffcc;">
+                <h2>🤖 Configurare Auto-Optimizare</h2>
+                <p style="font-size:0.82rem; color:#aaa; margin-bottom:15px;">
+                    Sistemul va controla automat HVAC + purificarea aerului pe baza programului,
+                    confortului și numărului de persoane.
+                </p>
+
+                <div class="control-group">
+                    <label>🕐 Program de lucru:</label>
+                    <div style="display:flex; gap:8px; align-items:center;">
+                        <input type="time" id="auto-work-start" class="glass-input" value="08:00" style="flex:1;">
+                        <span style="color:#00ffcc;">→</span>
+                        <input type="time" id="auto-work-end" class="glass-input" value="18:00" style="flex:1;">
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <label>📅 Zile lucrătoare:</label>
+                    <div class="day-picker">
+                        <label class="day-chk"><input type="checkbox" data-day="0" checked> L</label>
+                        <label class="day-chk"><input type="checkbox" data-day="1" checked> M</label>
+                        <label class="day-chk"><input type="checkbox" data-day="2" checked> M</label>
+                        <label class="day-chk"><input type="checkbox" data-day="3" checked> J</label>
+                        <label class="day-chk"><input type="checkbox" data-day="4" checked> V</label>
+                        <label class="day-chk"><input type="checkbox" data-day="5"> S</label>
+                        <label class="day-chk"><input type="checkbox" data-day="6"> D</label>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <label>🌡️ Interval confort: <span id="auto-range-val" style="color:#00ffcc;">20.0 – 24.0 °C</span></label>
+                    <div style="display:flex; gap:8px; align-items:center;">
+                        <input type="number" id="auto-temp-min" class="glass-input" value="20" min="15" max="30" step="0.5" style="flex:1;">
+                        <span style="color:#888;">–</span>
+                        <input type="number" id="auto-temp-max" class="glass-input" value="24" min="15" max="30" step="0.5" style="flex:1;">
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <label>🌙 Setback (când nu e ocupat):
+                        <span id="auto-setback-val" style="color:#ff9f43;">16.0</span> °C</label>
+                    <input type="range" id="auto-setback" min="10" max="20" step="0.5" value="16">
+                </div>
+
+                <div class="control-group">
+                    <label>🔥 Pre-heating: <span id="auto-preheat-val" style="color:#f39c12;">30</span> min înainte de program</label>
+                    <input type="range" id="auto-preheat" min="0" max="180" step="5" value="30">
+                </div>
+
+                <div class="control-group">
+                    <label>👥 Persoane total în clădire:
+                        <span id="auto-people-val" style="color:#f39c12;">30</span></label>
+                    <input type="range" id="auto-people-total" min="0" max="500" step="5" value="30">
+                </div>
+
+                <div class="control-group">
+                    <label>📊 Distribuție persoane:</label>
+                    <select id="auto-people-dist" class="glass-input">
+                        <option value="uniform">Uniform (toate etajele)</option>
+                        <option value="bottom">Concentrat la parter</option>
+                        <option value="middle">Concentrat la mijloc</option>
+                        <option value="top">Concentrat la ultimul etaj</option>
+                    </select>
+                </div>
+
+                <button id="btn-apply-auto" class="glass-btn action-btn"
+                        style="background: rgba(0, 255, 204, 0.3); border-color: #00ffcc; margin-top: 10px;">
+                    ✓ Aplică Configurație & Pregătește Simulare
+                </button>
+
+                <div id="auto-status" style="margin-top:10px; font-size:0.8rem; color:#aaa; text-align:center;">
+                    Configurează parametrii și apasă Aplică pentru a începe.
+                </div>
+            </div>
         </section>
     </main>
-    <!-- Fire Emergency Banner -->
-<div id="fire-banner" class="fire-banner hidden">
-    <div class="fire-banner-content">
-        <span class="fire-icon">🚨</span>
-        <div class="fire-banner-text">
-            <h3>EVACUARE ACTIVĂ</h3>
-            <p>Ventilație oprită · Uși deblocate · Curent întrerupt</p>
-        </div>
-        <button id="btn-fire-cancel" class="glass-btn fire-cancel-btn">Anulează Incendiu</button>
-    </div>
-</div>
-    <div id="history-modal" class="modal hidden">
-    <div class="modal-content glass-panel">
-        <span class="close-btn" id="close-modal">&times;</span>
-        <h2 style="color: #00ffcc; margin-bottom: 15px;">📈 Comparație Scenarii Salvate</h2>
-        <div class="history-table-container">
-            <table id="history-table">
-                <thead>
-                    <tr>
-                        <th style="width: 30px;"></th>
-                        <th>Dată & Oră</th>
-                        <th>Mod Simulare</th>
-                        <th>Timp Simulat</th>
-                        <th>Consum Total</th>
-                        <th>Setări (Etaje/m²)</th>
-                        <th>Acțiuni</th>
-                    </tr>
-                </thead>
-                <tbody id="history-body">
-                    <!-- Datele vor fi introduse aici din JS -->
-                </tbody>
-            </table>
-        </div>
 
-        <!-- Chart Comparison -->
-        <div id="chart-container" style="margin-top: 25px;">
-            <h3 style="color: #00ffcc; margin-bottom: 12px; font-size: 1rem;">📈 Comparație Consum (kWh vs. Timp Virtual)</h3>
-            <div id="chart-empty" class="chart-empty">
-                Bifează 1–4 scenarii din tabel pentru a vedea graficul comparativ.
+    <div id="fire-banner" class="fire-banner hidden">
+        <div class="fire-banner-content">
+            <span class="fire-icon">🚨</span>
+            <div class="fire-banner-text">
+                <h3>EVACUARE ACTIVĂ</h3>
+                <p>Ventilație oprită · Uși deblocate · Curent întrerupt</p>
             </div>
-            <canvas id="history-chart" style="display: none;"></canvas>
-            <div id="chart-legend" class="chart-legend"></div>
-        </div>
-
-        <button id="btn-clear-history" class="glass-btn danger" style="margin-top: 20px;">🗑️ Șterge Istoricul</button>
-    </div>
-    </div>
-
-    <!-- Modal Confirmare Generic -->
-<div id="confirm-modal" class="modal hidden">
-    <div class="modal-content glass-panel confirm-modal-content">
-        <h2 id="confirm-title" style="color: #ff9f43; margin-bottom: 15px;">⚠️ Confirmare</h2>
-        <div id="confirm-body" class="confirm-body"></div>
-        <div class="confirm-actions">
-            <button id="confirm-cancel" class="glass-btn">Anulează</button>
-            <button id="confirm-ok" class="glass-btn confirm-ok-btn">✓ Confirmă</button>
+            <button id="btn-fire-cancel" class="glass-btn fire-cancel-btn">Anulează Incendiu</button>
         </div>
     </div>
-</div>
+
+    <div id="history-modal" class="modal hidden">
+        <div class="modal-content glass-panel">
+            <span class="close-btn" id="close-modal">&times;</span>
+            <h2 style="color: #00ffcc; margin-bottom: 15px;">📈 Comparație Scenarii Salvate</h2>
+            <div class="history-table-container">
+                <table id="history-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 30px;"></th>
+                            <th>Dată & Oră</th>
+                            <th>Mod Simulare</th>
+                            <th>Timp Simulat</th>
+                            <th>Consum Total</th>
+                            <th>Setări (Etaje/m²)</th>
+                            <th>Acțiuni</th>
+                        </tr>
+                    </thead>
+                    <tbody id="history-body"></tbody>
+                </table>
+            </div>
+
+            <div id="chart-container" style="margin-top: 25px;">
+                <h3 style="color: #00ffcc; margin-bottom: 12px; font-size: 1rem;">📈 Comparație Consum (kWh vs. Timp Virtual)</h3>
+                <div id="chart-empty" class="chart-empty">
+                    Bifează 1–4 scenarii din tabel pentru a vedea graficul comparativ.
+                </div>
+                <canvas id="history-chart" style="display: none;"></canvas>
+                <div id="chart-legend" class="chart-legend"></div>
+            </div>
+
+            <button id="btn-clear-history" class="glass-btn danger" style="margin-top: 20px;">🗑️ Șterge Istoricul</button>
+        </div>
+    </div>
+
+    <div id="confirm-modal" class="modal hidden">
+        <div class="modal-content glass-panel confirm-modal-content">
+            <h2 id="confirm-title" style="color: #ff9f43; margin-bottom: 15px;">⚠️ Confirmare</h2>
+            <div id="confirm-body" class="confirm-body"></div>
+            <div class="confirm-actions">
+                <button id="confirm-cancel" class="glass-btn">Anulează</button>
+                <button id="confirm-ok" class="glass-btn confirm-ok-btn">✓ Confirmă</button>
+            </div>
+        </div>
+    </div>
 
     <script src="script.js"></script>
 </body>
