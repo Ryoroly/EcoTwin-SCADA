@@ -20,6 +20,7 @@
             
             <button id="btn-start" class="glass-btn">▶ Start Simulare</button>
             <button id="btn-reset" class="glass-btn danger">Reset & Pauză</button>
+            <button id="btn-fire" class="glass-btn fire-btn" title="Simulare Incendiu">🚨 INCENDIU</button>
         </div>
         <div class="global-stats">
             <span>Energie: <b id="total-energy" style="color: #00ffcc;">0.00</b> kWh</span>
@@ -86,6 +87,17 @@
             </div>
         </section>
     </main>
+    <!-- Fire Emergency Banner -->
+<div id="fire-banner" class="fire-banner hidden">
+    <div class="fire-banner-content">
+        <span class="fire-icon">🚨</span>
+        <div class="fire-banner-text">
+            <h3>EVACUARE ACTIVĂ</h3>
+            <p>Ventilație oprită · Uși deblocate · Curent întrerupt</p>
+        </div>
+        <button id="btn-fire-cancel" class="glass-btn fire-cancel-btn">Anulează Incendiu</button>
+    </div>
+</div>
     <div id="history-modal" class="modal hidden">
     <div class="modal-content glass-panel">
         <span class="close-btn" id="close-modal">&times;</span>

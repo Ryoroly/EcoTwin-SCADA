@@ -1,6 +1,10 @@
 let isRunning = false;
 let totalEnergy = 0; // kWh
 let simulatedMinutes = 0;
+
+let fireModeActive = false;
+let wasRunningBeforeFire = false;
+
 let energyHistory = [{ min: 0, kwh: 0 }];
 
 const speeds = [1, 5, 15, 60, 120]; 
@@ -25,6 +29,10 @@ const btnSpeedDown = document.getElementById('btn-speed-down');
 const btnSpeedUp = document.getElementById('btn-speed-up');
 const speedDisplay = document.getElementById('speed-display');
 const btnStart = document.getElementById('btn-start');
+
+const btnFire = document.getElementById('btn-fire');
+const fireBanner = document.getElementById('fire-banner');
+const btnFireCancel = document.getElementById('btn-fire-cancel');
 
 const btnHistory = document.getElementById('btn-history');
 const modalHistory = document.getElementById('history-modal');
@@ -239,7 +247,7 @@ function showConfirm({ title, body, okLabel = '✓ Confirmă', cancelLabel = 'An
 
 function simulationTick() {
     if (!isRunning) return;
-
+    if (fireModeActive) return;
     const extTemp = getValidNumber(inputExtTemp, 5, -30, 50);
     const thermalLossCoeff = parseFloat(inputThermal.value); 
     const areaMultiplier = getValidNumber(inputArea, 200, 50, 2000) / 100; 
@@ -408,6 +416,11 @@ document.getElementById('btn-apply-settings').addEventListener('click', () => {
 });
 
 btnStart.addEventListener('click', () => {
+    if (fireModeActive) {
+    displayStatus.innerText = '🚨 Anulează incendiul întâi';
+    displayStatus.style.color = '#ff4757';
+    return;
+    }
     isRunning = !isRunning;
     btnStart.innerText = isRunning ? '⏸ Pauză Simulare' : '▶ Start Simulare';
     btnStart.classList.toggle('highlight');
@@ -416,6 +429,7 @@ btnStart.addEventListener('click', () => {
 });
 
 document.getElementById('btn-reset').addEventListener('click', async () => {
+    if (fireModeActive) deactivateFireMode();
     const MIN_MINUTES_TO_SAVE = 60;
 
     if (simulatedMinutes >= MIN_MINUTES_TO_SAVE) {
@@ -443,6 +457,82 @@ document.getElementById('btn-reset').addEventListener('click', async () => {
     displayStatus.style.color = "#ff9f43";
     generateBuilding();
 });
+
+// === MODUL INCENDIU ===
+async function activateFireMode() {
+    const ok = await showConfirm({
+        title: '🚨 SIMULARE INCENDIU',
+        body: 'Această acțiune va:<br>' +
+              '• <b>OPRI</b> toate sistemele HVAC<br>' +
+              '• <b>TĂIA</b> ventilația (pentru a nu alimenta focul)<br>' +
+              '• <b>DEBLOCA</b> ușile pentru evacuare<br>' +
+              '• <b>ÎNTRERUPE</b> curentul pe toate nivelurile<br><br>' +
+              '<span style="color:#ff9f43">Simularea va fi pusă pe pauză.</span>',
+        okLabel: '🚨 Declanșează',
+        cancelLabel: 'Anulează'
+    });
+    if (!ok) return;
+
+    fireModeActive = true;
+    wasRunningBeforeFire = isRunning;
+    isRunning = false;
+
+    // UI general
+    btnStart.innerText = '▶ Start Simulare';
+    btnStart.classList.remove('highlight');
+    displayStatus.innerText = '🚨 EVACUARE ACTIVĂ';
+    displayStatus.style.color = '#ff4757';
+    displayInstantPower.innerText = '0.00 kW';
+
+    btnFire.classList.add('active');
+    btnFire.innerText = '🚨 INCENDIU ACTIV';
+    fireBanner.classList.remove('hidden');
+
+    // Vizual pe clădire
+    buildingContainer.classList.add('fire-mode');
+    document.querySelectorAll('.floor-level').forEach(el => el.classList.add('fire-pulse'));
+    document.querySelectorAll('.vent-air').forEach(el => el.classList.add('off'));
+    document.querySelectorAll('.exhaust-fan').forEach(el => el.classList.add('off'));
+
+    // Forțează afișarea 0 kW pe fiecare etaj
+    floorsData.forEach(floor => {
+        floor.lastPower = 0;
+        const powerEl = document.getElementById(`power-f${floor.level}`);
+        if (powerEl) powerEl.innerText = '0.00';
+    });
+}
+
+function deactivateFireMode() {
+    fireModeActive = false;
+
+    displayStatus.innerText = 'Pauză';
+    displayStatus.style.color = '#ff9f43';
+
+    btnFire.classList.remove('active');
+    btnFire.innerText = '🚨 INCENDIU';
+    fireBanner.classList.add('hidden');
+
+    buildingContainer.classList.remove('fire-mode');
+    document.querySelectorAll('.floor-level').forEach(el => el.classList.remove('fire-pulse'));
+    document.querySelectorAll('.vent-air').forEach(el => el.classList.remove('off'));
+    document.querySelectorAll('.exhaust-fan').forEach(el => el.classList.remove('off'));
+
+    // Reia simularea dacă rula înainte de incendiu
+    if (wasRunningBeforeFire) {
+        isRunning = true;
+        btnStart.innerText = '⏸ Pauză Simulare';
+        btnStart.classList.add('highlight');
+        displayStatus.innerText = 'Simulare Activă...';
+        displayStatus.style.color = '#00ffcc';
+    }
+    wasRunningBeforeFire = false;
+}
+
+btnFire.addEventListener('click', () => {
+    if (fireModeActive) deactivateFireMode();
+    else activateFireMode();
+});
+btnFireCancel.addEventListener('click', deactivateFireMode);
 
 // === LOGICA PENTRU ISTORIC & COMPARAȚII ===
 function saveToHistory() {

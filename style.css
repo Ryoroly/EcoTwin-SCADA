@@ -242,3 +242,124 @@ body { height: 100vh; display: flex; flex-direction: column; color: #fff; overfl
     from { transform: scale(0.92); opacity: 0; }
     to   { transform: scale(1);    opacity: 1; }
 }
+
+/* === BUTON INCENDIU === */
+.fire-btn {
+    background: linear-gradient(135deg, rgba(255, 50, 50, 0.25), rgba(255, 100, 0, 0.25));
+    border: 2px solid #ff4757;
+    font-weight: bold;
+    text-shadow: 0 0 10px rgba(255, 71, 87, 0.8);
+    padding: 10px 18px;
+}
+.fire-btn:hover {
+    background: linear-gradient(135deg, rgba(255, 50, 50, 0.45), rgba(255, 100, 0, 0.45));
+    box-shadow: 0 0 20px rgba(255, 71, 87, 0.8);
+}
+.fire-btn.active {
+    background: linear-gradient(135deg, #ff4757, #ff6347);
+    animation: firePulse 1s ease-in-out infinite;
+}
+
+/* === BANNER URGENȚĂ === */
+.fire-banner {
+    position: fixed;
+    top: 85px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 500;
+    background: linear-gradient(135deg, rgba(220, 20, 60, 0.95), rgba(180, 0, 30, 0.95));
+    border: 2px solid #ff4757;
+    border-radius: 8px;
+    padding: 15px 25px;
+    box-shadow: 0 0 40px rgba(255, 71, 87, 0.8), 0 8px 32px rgba(0,0,0,0.5);
+    backdrop-filter: blur(10px);
+    animation: firePulse 1.5s ease-in-out infinite;
+    transition: opacity 0.3s ease;
+}
+.fire-banner.hidden {
+    opacity: 0;
+    pointer-events: none;
+}
+.fire-banner-content {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+.fire-icon {
+    font-size: 2.5rem;
+    animation: fireShake 0.5s ease-in-out infinite;
+}
+.fire-banner-text h3 {
+    color: #fff;
+    font-size: 1.2rem;
+    margin-bottom: 4px;
+    letter-spacing: 2px;
+}
+.fire-banner-text p {
+    color: #ffcccc;
+    font-size: 0.85rem;
+}
+.fire-cancel-btn {
+    background: rgba(255, 255, 255, 0.2);
+    border: 1px solid #fff;
+    color: #fff;
+    font-weight: bold;
+    white-space: nowrap;
+}
+.fire-cancel-btn:hover {
+    background: rgba(255, 255, 255, 0.35);
+}
+
+/* === ETajE ÎN FLĂCĂRI === */
+.floor-level.fire-pulse .face-base {
+    background-color: rgba(200, 30, 30, 0.3);
+    background-image:
+        linear-gradient(rgba(255, 80, 80, 0.5) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 80, 80, 0.5) 1px, transparent 1px);
+    border-color: #ff4757;
+    animation: floorFireGlow 1s ease-in-out infinite alternate;
+}
+.floor-level.fire-pulse .face-front,
+.floor-level.fire-pulse .face-right {
+    background: linear-gradient(180deg, rgba(100, 10, 10, 0.85) 0%, rgba(50, 5, 5, 0.95) 100%);
+    border-color: #ff4757;
+    border-top: 2px solid #ff4757;
+}
+.floor-level.fire-pulse .f-title,
+.floor-level.fire-pulse .f-temp {
+    color: #ffb3b3;
+    text-shadow: 0 0 10px rgba(255, 71, 87, 0.9);
+}
+
+/* === VENTILAȚIE OPRITĂ === */
+.vent-air.off {
+    opacity: 0;
+    animation: none !important;
+}
+.exhaust-fan.off {
+    border-color: #333;
+    animation: none !important;
+    box-shadow: none;
+}
+
+/* === CONTROALE DEZACTIVATE ÎN FIRE MODE === */
+.fire-mode .local-exhaust,
+.fire-mode .f-people input,
+.fire-mode .f-target input {
+    opacity: 0.3;
+    pointer-events: none;
+}
+
+@keyframes firePulse {
+    0%, 100% { box-shadow: 0 0 40px rgba(255, 71, 87, 0.6); }
+    50%      { box-shadow: 0 0 60px rgba(255, 71, 87, 1); }
+}
+@keyframes fireShake {
+    0%, 100% { transform: rotate(-5deg); }
+    50%      { transform: rotate(5deg); }
+}
+@keyframes floorFireGlow {
+    from { box-shadow: inset 0 0 50px rgba(255, 50, 50, 0.4), 0 0 20px rgba(255, 50, 50, 0.4); }
+    to   { box-shadow: inset 0 0 80px rgba(255, 50, 50, 0.7), 0 0 40px rgba(255, 50, 50, 0.7); }
+}
+
