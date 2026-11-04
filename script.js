@@ -2,7 +2,7 @@
 //  STARE GLOBALĂ
 // ============================================================
 let isRunning = false;
-let totalEnergy = 0;            // kWh
+let totalEnergy = 0;
 let simulatedMinutes = 0;
 
 let fireModeActive = false;
@@ -19,18 +19,12 @@ let speedIndex = 0;
 let timeMultiplier = speeds[speedIndex];
 let floorsData = [];
 
-// 🆕 Masă termică (inerție pereți) — factor care încetinește TOATE variațiile de temperatură
 let thermalMass = 1.0;
-
-// 🆕 Bug 3 fix: păstrează targeturile manuale când comuți pe Auto
 let savedManualTargets = null;
-
-// 🆕 Bug 5 fix: pauză la tab ascuns
 let pausedByVisibility = false;
 
-// 🆕 Limite fizice
-const CO2_CAP = 5000;           // ppm — limită superioară (TLV)
-const CO2_FLOOR = 400;          // ppm — minim natural
+const CO2_CAP = 5000;
+const CO2_FLOOR = 400;
 const THERMAL_MASS_DEFAULT = 1.0;
 
 // ============================================================
@@ -42,7 +36,7 @@ const inputArea = document.getElementById('input-area');
 const inputThermal = document.getElementById('input-thermal');
 const inputExtTemp = document.getElementById('input-ext-temp');
 const inputInitTemp = document.getElementById('input-init-temp');
-const inputThermalMass = document.getElementById('input-thermal-mass'); // 🆕
+const inputThermalMass = document.getElementById('input-thermal-mass');
 const simModeSelect = document.getElementById('sim-mode');
 
 const displayEnergy = document.getElementById('total-energy');
@@ -72,7 +66,6 @@ inputThermal.addEventListener('input', (e) => {
     document.getElementById('val-thermal').innerText = e.target.value;
 });
 
-// 🆕 Listener masă termică (live, fără rebuild)
 if (inputThermalMass) {
     inputThermalMass.value = THERMAL_MASS_DEFAULT;
     inputThermalMass.addEventListener('input', (e) => {
@@ -115,7 +108,6 @@ function generateBuilding() {
     selectedFloorIndex = null;
     floorDetailPanel.classList.add('floor-panel-hidden');
 
-    // Scaling dinamic
     const MAX_VISUAL_HEIGHT = 1400;
     const MIN_FLOOR_HEIGHT = 100;
     const MAX_FLOOR_HEIGHT = 200;
@@ -215,35 +207,43 @@ function generateBuilding() {
 }
 
 // ============================================================
-//  BUG 3 FIX — Mod simulare: salvează/restaurează targeturi manuale
+//  MOD SIMULARE — toggle panou auto + blocare/deblocare inputuri
 // ============================================================
 simModeSelect.addEventListener('change', (e) => {
     const isAuto = e.target.value === 'auto';
 
-    // 🆕 Afișează/ascunde panoul auto
     document.getElementById('auto-config-panel').classList.toggle('hidden', !isAuto);
-
     logEvent(`Mod simulare: ${isAuto ? 'Auto (Optimizat)' : 'Manual'}`, 'info');
 
     if (isAuto) {
-        autoConfig.isApplied = false;  // trebuie reaplicat
+        autoConfig.isApplied = false;
         document.getElementById('auto-status').innerText =
             'Configurează parametrii și apasă Aplică pentru a începe.';
 
         floorsData.forEach(floor => {
             const inputTarget = document.getElementById(`target-f${floor.level}`);
-            inputTarget.readOnly = true;
+            if (inputTarget) {
+                inputTarget.readOnly = true;
+                inputTarget.style.opacity = '0.5';
+            }
         });
     } else {
         autoConfig.isApplied = false;
         floorsData.forEach(floor => {
             const inputTarget = document.getElementById(`target-f${floor.level}`);
-            inputTarget.readOnly = false;
-            // Restaurează targetul manual (dacă există)
-            if (floor.targetTemp < 10 || floor.targetTemp > 35) {
-                floor.targetTemp = 22;
-                inputTarget.value = '22';
+            const chk = document.getElementById(`chk-occ-f${floor.level}`);
+            const slider = document.getElementById(`slider-occ-f${floor.level}`);
+
+            if (inputTarget) {
+                inputTarget.readOnly = false;
+                inputTarget.style.opacity = '1';
+                if (floor.targetTemp < 10 || floor.targetTemp > 35) {
+                    floor.targetTemp = 22;
+                    inputTarget.value = '22';
+                }
             }
+            if (chk) chk.disabled = false;
+            if (slider) slider.disabled = !floor.hasPeople;
         });
     }
 });
@@ -324,11 +324,11 @@ function updateFloorDetailPanel(floor) {
     document.getElementById('detail-target-val').innerText = floor.targetTemp.toFixed(1);
 
     const occChk = document.getElementById('detail-occupied');
-    occChk.disabled = isFire;
+    occChk.disabled = isFire || isAuto;  // 🆕 blocat și în Auto
     occChk.checked = floor.hasPeople;
 
     const peopleSlider = document.getElementById('detail-people');
-    peopleSlider.disabled = isFire || !floor.hasPeople;
+    peopleSlider.disabled = isFire || isAuto || !floor.hasPeople;  // 🆕 blocat și în Auto
     peopleSlider.value = floor.peopleCount;
     document.getElementById('detail-people-val').innerText = floor.hasPeople ? floor.peopleCount : 0;
 }
@@ -447,7 +447,7 @@ function showConfirm({ title, body, okLabel = '✓ Confirmă', cancelLabel = 'An
 }
 
 // ============================================================
-//  SIMULARE — cu thermal mass, transfer simetric, cap CO₂
+//  SIMULARE
 // ============================================================
 function simulationTick() {
     if (!isRunning) return;
@@ -459,48 +459,35 @@ function simulationTick() {
     const numFloors = floorsData.length;
 
     let tickEnergy = 0;
-    let powerSumForTick = 0; // 🆕 Bug 7 fix: acumulează pentru medie
+    let powerSumForTick = 0;
 
     for (let step = 0; step < timeMultiplier; step++) {
         simulatedMinutes += 1;
-        // 🆕 Auto optimizer la fiecare 5 minute simulate
+
         if (simModeSelect.value === 'auto' && autoConfig.isApplied && simulatedMinutes % 5 === 0) {
             runAutoOptimizer();
         }
 
-        // --------------------------------------------------
-        // PASUL 1: Pierderi spre exterior + transfer vertical
-        //         (aplicate pe copie, apoi comise — păstrează
-        //          comportamentul original + thermal mass)
-        // --------------------------------------------------
         const newTemps = floorsData.map(f => f.currentTemp);
 
-        // (a) Pierderi pereți (parter 1.5x, ultimul etaj 1.3x)
         for (let i = 0; i < numFloors; i++) {
             const extFactor = i === 0 ? 1.5 : (i === numFloors - 1 ? 1.3 : 1.0);
             newTemps[i] += (thermalLossCoeff * (extTemp - floorsData[i].currentTemp) * extFactor) / thermalMass;
         }
 
-        // (b) Transfer vertical — ASIMETRIC, DAR CU CONSERVARE DE ENERGIE
-        //     k_up (0.02) = căldura urcă (convecție naturală)
-        //     k_down (0.005) = căldura coboară (mult mai slab)
         for (let i = 0; i < numFloors - 1; i++) {
             const deltaT = floorsData[i].currentTemp - floorsData[i + 1].currentTemp;
-            const k = deltaT > 0 ? 0.02 : 0.005;   // asimetrie intenționată
+            const k = deltaT > 0 ? 0.02 : 0.005;
             const flow = (deltaT * k) / thermalMass;
-            newTemps[i]     -= flow;   // pierde
-            newTemps[i + 1] += flow;   // primește (conservare energie ✓)
+            newTemps[i]     -= flow;
+            newTemps[i + 1] += flow;
         }
 
         for (let i = 0; i < numFloors; i++) floorsData[i].currentTemp = newTemps[i];
 
-        // --------------------------------------------------
-        // PASUL 2: HVAC + CO₂ + exhaust (per etaj)
-        // --------------------------------------------------
         floorsData.forEach((floor) => {
             const currentOccupants = floor.hasPeople ? floor.peopleCount : 0;
 
-            // Metabolism
             if (floor.hasPeople) {
                 floor.co2 += currentOccupants * 1.5;
                 floor.currentTemp += (currentOccupants * 0.0003) / thermalMass;
@@ -508,12 +495,10 @@ function simulationTick() {
                 floor.co2 -= 0.5;
             }
 
-            // --- Ventilator local CO₂ (P-controller cu saturație) ---
             floor.exhaustActive = false;
             let exhaustPower = 0;
             let ventTempDelta = 0;
 
-                        // 🆕 În auto mode, exhaust doar în program sau pre-heating
             const _isAuto = simModeSelect.value === 'auto' && autoConfig.isApplied;
             const _allowExhaust = !_isAuto
                 || isWorkTime()
@@ -527,11 +512,9 @@ function simulationTick() {
                 ventTempDelta += (extTemp - floor.currentTemp) * (extractionEffort / 100) * 0.002;
             }
 
-            // 🆕 Cap CO₂ (sus) + floor natural (jos)
             if (floor.co2 < CO2_FLOOR) floor.co2 = CO2_FLOOR;
             if (floor.co2 > CO2_CAP)   floor.co2 = CO2_CAP;
 
-            // --- HVAC (intensitate continuă) ---
             const diff = floor.targetTemp - floor.currentTemp;
             const DEADBAND = 0.05;
             const FULL_POWER_AT = 0.55;
@@ -553,7 +536,7 @@ function simulationTick() {
                 floor.hvacState = 'maintaining';
             }
 
-            let hvacPower = 0.1 * areaMultiplier; // standby
+            let hvacPower = 0.1 * areaMultiplier;
 
             if (intensity > 0) {
                 floor.currentTemp += (0.15 * intensity) / thermalMass;
@@ -569,17 +552,14 @@ function simulationTick() {
                 ventTempDelta += (extTemp - floor.currentTemp) * 0.01;
             }
 
-            // Impact termic ventilație (plafonat ±0.15°C/min) + thermal mass
             ventTempDelta = Math.max(-0.15, Math.min(0.15, ventTempDelta));
             floor.currentTemp += ventTempDelta / thermalMass;
 
-            // Putere totală etaj
             const totalFloorPower = hvacPower + exhaustPower;
             floor.lastPower = totalFloorPower;
             powerSumForTick += totalFloorPower;
             tickEnergy += totalFloorPower;
 
-            // --- Log tranziții HVAC ---
             if (floor._prevHvac !== floor.hvacState) {
                 const labels = {
                     heating: 'Încălzire', cooling: 'Răcire',
@@ -589,7 +569,6 @@ function simulationTick() {
                 floor._prevHvac = floor.hvacState;
             }
 
-            // --- Log praguri CO₂ ---
             const co2Level = floor.co2 > 1200 ? 2 : (floor.co2 > 1000 ? 1 : 0);
             if (co2Level === 1 && floor._prevCo2Level === 0) {
                 logEvent(`Etaj ${floor.level}: CO2 > 1000 ppm`, 'warn');
@@ -601,17 +580,13 @@ function simulationTick() {
             floor._prevCo2Level = co2Level;
         });
 
-        // Sample grafic la fiecare 30 min virtuale
         if (simulatedMinutes % 30 === 0) {
             const runningTotal = totalEnergy + tickEnergy / 60;
             energyHistory.push({ min: simulatedMinutes, kwh: runningTotal });
         }
     }
 
-    // --------------------------------------------------
-    // PASUL 3: Update UI (după toate iterațiile din tick)
-    // --------------------------------------------------
-    const currentInstantPower = powerSumForTick / timeMultiplier; // 🆕 medie pe tick
+    const currentInstantPower = powerSumForTick / timeMultiplier;
 
     displayTime.innerText = formatTime(simulatedMinutes);
     displayInstantPower.innerText = `${currentInstantPower.toFixed(2)} kW`;
@@ -642,7 +617,6 @@ function simulationTick() {
         updateFloorDetailPanel(floorsData[selectedFloorIndex]);
     }
 
-    // 🆕 Sync panoul auto o dată per tick (nu per step)
     if (simModeSelect.value === 'auto' && autoConfig.isApplied) {
         syncAutoUI();
     }
@@ -652,7 +626,7 @@ function simulationTick() {
 }
 
 // ============================================================
-//  APLICĂ SETĂRI (reset complet — fix colateral inclus)
+//  APLICĂ SETĂRI
 // ============================================================
 document.getElementById('btn-apply-settings').addEventListener('click', () => {
     isRunning = false;
@@ -672,9 +646,6 @@ document.getElementById('btn-apply-settings').addEventListener('click', () => {
     logEvent(`🏢 Clădire reconstruită: ${inputFloors.value} etaje, ${inputArea.value} m²`, 'info');
 });
 
-// ============================================================
-//  BUG 2 FIX — temp inițială modificată
-// ============================================================
 inputInitTemp.addEventListener('change', () => {
     if (simulatedMinutes === 0 && !isRunning) {
         generateBuilding();
@@ -837,7 +808,7 @@ function saveToHistory() {
         extTemp: getValidNumber(inputExtTemp, 5, -30, 50),
         initTemp: getValidNumber(inputInitTemp, 10, -20, 50),
         thermalCoeff: parseFloat(inputThermal.value),
-        thermalMass: thermalMass, // 🆕 salvează și masa termică
+        thermalMass: thermalMass,
         occupancyMap: occupancyMap,
         targetsMap: targetsMap,
         energySeries: energyHistory.slice()
@@ -849,12 +820,10 @@ function saveToHistory() {
     logEvent(`💾 Scenariu salvat: ${totalEnergy.toFixed(2)} kWh`, 'success');
 }
 
-// 🆕 BUG 1 FIX — ștergere după ID, nu după index
 window.deleteRecord = function(recId) {
     let history = JSON.parse(localStorage.getItem('ecoTwinHistory')) || [];
     const index = history.findIndex(r => r.id === recId);
     if (index === -1) {
-        // Fallback pentru legacy fără id
         const legacyIdx = parseInt(String(recId).replace('legacy-', ''));
         if (isNaN(legacyIdx) || legacyIdx < 0 || legacyIdx >= history.length) return;
         history.splice(legacyIdx, 1);
@@ -1084,7 +1053,7 @@ btnCloseModal.addEventListener('click', () => { modalHistory.classList.add('hidd
 modalHistory.addEventListener('click', (e) => { if (e.target === modalHistory) modalHistory.classList.add('hidden'); });
 
 // ============================================================
-//  BUG 5 FIX — pauză la tab ascuns (reluare automată)
+//  PAUZĂ LA TAB ASCUNS
 // ============================================================
 document.addEventListener('visibilitychange', () => {
     if (document.hidden && isRunning) {
@@ -1106,15 +1075,12 @@ document.addEventListener('visibilitychange', () => {
 });
 
 // ============================================================
-//  BOOT
-// ============================================================
-// ============================================================
-//  🤖 AUTO MODE — configurare + optimizator (MPC-lite)
+//  AUTO MODE — configurare + optimizator
 // ============================================================
 const autoConfig = {
-    workStart: 8 * 60,          // 08:00 în minute
-    workEnd: 18 * 60,           // 18:00
-    workDays: [0, 1, 2, 3, 4],  // 0=Luni ... 6=Duminică
+    workStart: 8 * 60,
+    workEnd: 18 * 60,
+    workDays: [0, 1, 2, 3, 4],
     tempMin: 20,
     tempMax: 24,
     setback: 16,
@@ -1124,7 +1090,6 @@ const autoConfig = {
     isApplied: false
 };
 
-// --- Bind UI (o singură dată, la încărcare) ---
 (function initAutoPanel() {
     const el = (id) => document.getElementById(id);
 
@@ -1163,11 +1128,19 @@ function isWorkTime(minuteAhead = 0) {
     if (!autoConfig.workDays.includes(day)) return false;
     return min >= autoConfig.workStart && min < autoConfig.workEnd;
 }
+
+// Cache pentru minutesUntilWork (evită bucle de 10080 iterații per tick)
+let _cacheMUW_At = -1;
+let _cacheMUW_Val = -1;
 function minutesUntilWork() {
+    if (_cacheMUW_At === simulatedMinutes) return _cacheMUW_Val;
+    let result = Infinity;
     for (let m = 1; m < 7 * 24 * 60; m++) {
-        if (isWorkTime(m)) return m;
+        if (isWorkTime(m)) { result = m; break; }
     }
-    return Infinity;
+    _cacheMUW_At = simulatedMinutes;
+    _cacheMUW_Val = result;
+    return result;
 }
 
 // --- Distribuție persoane pe etaje ---
@@ -1216,17 +1189,14 @@ function distributePeople() {
 
 // --- Calculează targetTemp pentru un etaj în program ---
 function computeComfortTarget(floor, floorIndex) {
-    // Bandă confort: heat până la lowTarget, cool peste tempMax
     let lowTarget = autoConfig.tempMin;
 
-    // Căldură metabolică → poți coborî ușor sub tempMin
     if (floor.hasPeople) {
         lowTarget -= Math.min(1.5, (floor.peopleCount / 20) * 0.3);
     } else {
         lowTarget -= 0.5;
     }
 
-    // Transfer de la etajele de dedesubt
     let heatFromBelow = 0;
     for (let j = 0; j < floorIndex; j++) {
         if (floorsData[j].currentTemp > floor.currentTemp + 0.5) {
@@ -1236,13 +1206,12 @@ function computeComfortTarget(floor, floorIndex) {
     lowTarget -= Math.min(1, heatFromBelow);
     lowTarget = Math.max(autoConfig.tempMin - 1, lowTarget);
 
-    // Decizie
-    if (floor.currentTemp < lowTarget - 0.1) return lowTarget;    // heat
-    if (floor.currentTemp > autoConfig.tempMax) return autoConfig.tempMax;  // cool
-    return floor.currentTemp;   // în bandă → deadband (fără acțiune)
+    if (floor.currentTemp < lowTarget - 0.1) return lowTarget;
+    if (floor.currentTemp > autoConfig.tempMax) return autoConfig.tempMax;
+    return floor.currentTemp;
 }
 
-// --- Optimizatorul propriu-zis (chemat periodic din tick) ---
+// --- Optimizatorul propriu-zis ---
 function runAutoOptimizer() {
     if (simModeSelect.value !== 'auto') return;
     if (!autoConfig.isApplied) return;
@@ -1251,14 +1220,12 @@ function runAutoOptimizer() {
     const minsToWork = minutesUntilWork();
     const inPreheat = !inWork && minsToWork <= autoConfig.preheatMinutes;
 
-    // 1. Persoane
     if (inWork) {
         distributePeople();
     } else {
         floorsData.forEach(f => { f.hasPeople = false; f.peopleCount = 0; });
     }
 
-    // 2. Target per etaj (fără DOM — doar date)
     floorsData.forEach((floor, i) => {
         if (inWork) {
             floor.targetTemp = computeComfortTarget(floor, i);
@@ -1272,18 +1239,30 @@ function runAutoOptimizer() {
     });
 }
 
-// --- Sync UI (o dată per tick, nu per step) ---
+// --- Sync UI (o dată per tick) — BLOCARE COMPLETĂ + status live ---
 function syncAutoUI() {
     floorsData.forEach(floor => {
         const inputEl = document.getElementById(`target-f${floor.level}`);
-        if (inputEl) inputEl.value = floor.targetTemp.toFixed(1);
-
         const chk = document.getElementById(`chk-occ-f${floor.level}`);
         const slider = document.getElementById(`slider-occ-f${floor.level}`);
         const val = document.getElementById(`occ-val-f${floor.level}`);
         const base = document.getElementById(`base-f${floor.level}`);
-        if (chk) chk.checked = floor.hasPeople;
-        if (slider) { slider.value = floor.peopleCount; slider.disabled = true; }
+
+        if (inputEl) {
+            inputEl.value = floor.targetTemp.toFixed(1);
+            inputEl.readOnly = true;
+            inputEl.style.opacity = '0.5';
+            inputEl.style.cursor = 'not-allowed';
+        }
+        if (chk) {
+            chk.checked = floor.hasPeople;
+            chk.disabled = true;
+            chk.style.cursor = 'not-allowed';
+        }
+        if (slider) {
+            slider.value = floor.peopleCount;
+            slider.disabled = true;
+        }
         if (val) val.innerText = floor.hasPeople ? floor.peopleCount : 0;
         if (base) base.classList.toggle('lights-on', floor.hasPeople);
     });
@@ -1291,6 +1270,54 @@ function syncAutoUI() {
     if (selectedFloorIndex !== null && floorsData[selectedFloorIndex]) {
         updateFloorDetailPanel(floorsData[selectedFloorIndex]);
     }
+
+    updateAutoStatusLine();
+}
+
+// --- Afișează starea curentă în panoul Auto ---
+function updateAutoStatusLine() {
+    const el = document.getElementById('auto-status');
+    if (!el || !autoConfig.isApplied) return;
+
+    const inWork = isWorkTime();
+    const minsToWork = minutesUntilWork();
+    const inPreheat = !inWork && minsToWork <= autoConfig.preheatMinutes;
+
+    const sH = String(Math.floor(autoConfig.workStart / 60)).padStart(2, '0');
+    const sM = String(autoConfig.workStart % 60).padStart(2, '0');
+    const eH = String(Math.floor(autoConfig.workEnd / 60)).padStart(2, '0');
+    const eM = String(autoConfig.workEnd % 60).padStart(2, '0');
+    const program = `${sH}:${sM}–${eH}:${eM}`;
+
+    const dist = floorsData.map(f => `N${f.level}=${f.hasPeople ? f.peopleCount : 0}`).join(' · ');
+
+    let stateBadge = '';
+    let stateColor = '#aaa';
+
+    if (inWork) {
+        stateBadge = '✅ PROGRAM ACTIV';
+        stateColor = '#00ffcc';
+    } else if (inPreheat) {
+        stateBadge = `🔥 PRE-HEATING (${minsToWork} min până la start)`;
+        stateColor = '#f39c12';
+    } else {
+        const h = Math.floor(minsToWork / 60);
+        const m = minsToWork % 60;
+        stateBadge = `🌙 SETBACK (start în ${h}h ${m}m)`;
+        stateColor = '#ff9f43';
+    }
+
+    el.innerHTML = `
+        <div style="color:${stateColor}; font-weight:bold; margin-bottom:6px;">
+            ${stateBadge}
+        </div>
+        <div style="font-size:0.75rem; color:#888;">
+            Program: ${program} · Confort: ${autoConfig.tempMin}–${autoConfig.tempMax}°C · Setback: ${autoConfig.setback}°C
+        </div>
+        <div style="font-size:0.75rem; color:#888; margin-top:4px;">
+            Persoane: ${dist}
+        </div>
+    `;
 }
 
 // --- Citește config din UI ---
@@ -1333,7 +1360,6 @@ function applyAutoConfig() {
 
     autoConfig.isApplied = true;
 
-    // Reset simulare
     isRunning = false;
     btnStart.innerText = '▶ Start Simulare';
     btnStart.classList.remove('highlight');
@@ -1350,21 +1376,12 @@ function applyAutoConfig() {
     runAutoOptimizer();
     syncAutoUI();
 
-    const sH = Math.floor(autoConfig.workStart / 60);
-    const sM = String(autoConfig.workStart % 60).padStart(2, '0');
-    const eH = Math.floor(autoConfig.workEnd / 60);
-    const eM = String(autoConfig.workEnd % 60).padStart(2, '0');
-    const startStr = `${sH}:${sM}`;
-    const endStr = `${eH}:${eM}`;
-
-    document.getElementById('auto-status').innerHTML =
-        `✅ Configurat: <b style="color:#00ffcc;">${startStr}–${endStr}</b> · ` +
-        `${autoConfig.totalPeople} persoane · confort ${autoConfig.tempMin}–${autoConfig.tempMax}°C`;
-
-    logEvent(`🤖 Auto configurat: program ${startStr}–${endStr}, ${autoConfig.totalPeople} persoane, confort ${autoConfig.tempMin}–${autoConfig.tempMax}°C`, 'success');
+    logEvent(`🤖 Auto configurat: program ${formatTime(0).replace('0 Zile, ','')}, ${autoConfig.totalPeople} persoane`, 'success');
 }
 
-
+// ============================================================
+//  BOOT
+// ============================================================
 setInterval(simulationTick, 100);
 generateBuilding();
 logEvent('✓ Sistem inițializat - 3 etaje, 200 m²', 'success');
