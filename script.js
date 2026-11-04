@@ -150,7 +150,9 @@ function generateBuilding() {
             lastPower: 0,
             co2: 400,
             hasPeople: false,
-            peopleCount: 10
+            peopleCount: 10,
+            _prevHvac: 'maintaining',
+            _prevCo2Level: 0
         });
 
         document.getElementById(`target-f${i}`).addEventListener('change', (e) => {
@@ -183,6 +185,7 @@ function generateBuilding() {
 
 simModeSelect.addEventListener('change', (e) => {
     const isAuto = e.target.value === 'auto';
+    logEvent(`Mod simulare: ${isAuto ? 'Auto (AI)' : 'Manual'}`, 'info');
     floorsData.forEach(floor => {
         const inputTarget = document.getElementById(`target-f${floor.level}`);
         inputTarget.readOnly = isAuto;
@@ -336,6 +339,31 @@ document.addEventListener('click', (e) => {
     if (e.target.closest('#floor-detail-panel')) return;
     if (e.target.closest('button, input, select, label')) return;
     deselectFloor();
+});
+
+// === LOG EVENIMENTE ===
+function logEvent(message, type = 'info') {
+    const container = document.getElementById('event-log');
+    if (!container) return;
+    
+    const timeStr = formatTime(simulatedMinutes);
+    const entry = document.createElement('div');
+    entry.className = `log-entry log-${type}`;
+    entry.innerHTML = `<span class="log-time">${timeStr}</span>${message}`;
+    container.appendChild(entry);
+    
+    // Cap la 50 intrări
+    while (container.children.length > 50) {
+        container.removeChild(container.firstChild);
+    }
+    
+    // Auto-scroll la ultima
+    container.scrollTop = container.scrollHeight;
+}
+
+document.getElementById('btn-clear-log').addEventListener('click', () => {
+    document.getElementById('event-log').innerHTML = '';
+    logEvent('Log golit', 'info');
 });
 
 // === MODAL CONFIRMARE REUTILIZABIL ===
@@ -500,7 +528,34 @@ function simulationTick() {
     floor.lastPower = totalFloorPower; 
     currentInstantPower += totalFloorPower;
     tickEnergy += totalFloorPower; 
+
+                // === LOG: Tranziții HVAC ===
+            if (floor._prevHvac !== floor.hvacState) {
+                const labels = { 
+                    heating: 'Încălzire', 
+                    cooling: 'Răcire', 
+                    maintaining: 'Menținere', 
+                    ventilating: 'Ventilare' 
+                };
+                logEvent(
+                    `Etaj ${floor.level}: ${labels[floor._prevHvac]} → ${labels[floor.hvacState]}`, 
+                    'info'
+                );
+                floor._prevHvac = floor.hvacState;
+            }
+
+            // === LOG: Praguri CO2 ===
+            const co2Level = floor.co2 > 1200 ? 2 : (floor.co2 > 1000 ? 1 : 0);
+            if (co2Level === 1 && floor._prevCo2Level === 0) {
+                logEvent(`Etaj ${floor.level}: CO2 > 1000 ppm`, 'warn');
+            } else if (co2Level === 2 && floor._prevCo2Level !== 2) {
+                logEvent(`Etaj ${floor.level}: CO2 critic > 1200 ppm`, 'danger');
+            } else if (co2Level === 0 && floor._prevCo2Level > 0) {
+                logEvent(`Etaj ${floor.level}: CO2 revenit la normal`, 'success');
+            }
+            floor._prevCo2Level = co2Level;
         });
+
     // D9: Sample serie temporală la fiecare 30 min virtuale
         if (simulatedMinutes % 30 === 0) {
             const runningTotal = totalEnergy + tickEnergy / 60;
@@ -549,6 +604,7 @@ function simulationTick() {
 document.getElementById('btn-apply-settings').addEventListener('click', () => {
     energyHistory = [{ min: 0, kwh: 0 }];
     generateBuilding();
+    logEvent(`🏢 Clădire reconstruită: ${inputFloors.value} etaje, ${inputArea.value} m²`, 'info');
 });
 
 btnStart.addEventListener('click', () => {
@@ -562,6 +618,7 @@ btnStart.addEventListener('click', () => {
     btnStart.classList.toggle('highlight');
     displayStatus.innerText = isRunning ? 'Simulare Activă...' : 'Pauză';
     displayStatus.style.color = isRunning ? '#00ffcc' : '#ff9f43';
+    logEvent(isRunning ? '▶ Simulare pornită' : '⏸ Simulare pe pauză', 'info');
 });
 
 document.getElementById('btn-reset').addEventListener('click', async () => {
@@ -593,6 +650,7 @@ document.getElementById('btn-reset').addEventListener('click', async () => {
     displayStatus.innerText = "Pauză";
     displayStatus.style.color = "#ff9f43";
     generateBuilding();
+    logEvent('🔄 Scenariu resetat - simulare oprită', 'info');
 });
 
 // === MODUL INCENDIU ===
@@ -630,6 +688,7 @@ async function activateFireMode() {
     btnFire.classList.add('active');
     btnFire.innerText = '🚨 INCENDIU ACTIV';
     fireBanner.classList.remove('hidden');
+    logEvent('🚨 SIMULARE INCENDIU ACTIVATĂ - Ventilație oprită, uși deblocate', 'danger');
 
     // Vizual pe clădire
     buildingContainer.classList.add('fire-mode');
@@ -654,6 +713,7 @@ function deactivateFireMode() {
     btnFire.classList.remove('active');
     btnFire.innerText = '🚨 INCENDIU';
     fireBanner.classList.add('hidden');
+    logEvent('Incendiu anulat - Sistemele revin la normal', 'success');
 
     buildingContainer.classList.remove('fire-mode');
     document.querySelectorAll('.floor-level').forEach(el => el.classList.remove('fire-pulse'));
@@ -712,6 +772,7 @@ function saveToHistory() {
     history = history.slice(0, 50);
     
     localStorage.setItem('ecoTwinHistory', JSON.stringify(history));
+    logEvent(`💾 Scenariu salvat: ${totalEnergy.toFixed(2)} kWh`, 'success');
 }
 
 window.deleteRecord = function(index) {
@@ -952,3 +1013,4 @@ modalHistory.addEventListener('click', (e) => { if (e.target === modalHistory) m
 
 setInterval(simulationTick, 100);
 generateBuilding();
+logEvent('✓ Sistem inițializat - 3 etaje, 200 m²', 'success');

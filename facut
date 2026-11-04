@@ -269,3 +269,23 @@ Ce vrem:
     Status text schimbat din „Resetat (Salvat & Pauză)” în „Pauză” – mai curat.
 
 
+
+
+
+
+
+
+
+
+
+🎯 Ce rămâne din planul inițial
+❌ Neîncepute
+Task	Descriere	Efort estimat
+Task 3	AI Auto – înlocuiește logica hardcodată cu un algoritm local care minimizează consumul bazat pe transfer termic, CO2, ocupanți	2–3h
+Task 5	LLM API (opțional) – analiză text a stării curente prin Gemini/OpenAI	1–2h (dacă aveți cheie)
+C1 extins	Nivel 2 – Click-to-zoom 3D: camera se centrează pe etajul selectat (opțional, dacă rămâne timp)	1h
+⚠️ Parțial sau opțional
+
+    B2 – „Aplică” vs „live” inconsistent (cosmetic, dar amânat)
+
+    B9 – Tavan pe ultimul etaj (nu e bug, dar dacă vreți terasă vizibilă)

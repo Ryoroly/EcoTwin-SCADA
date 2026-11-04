@@ -30,9 +30,12 @@ body { height: 100vh; display: flex; flex-direction: column; color: #fff; overfl
 #speed-display { font-weight: bold; color: #00ffcc; width: 85px; text-align: center; }
 
 .container { display: flex; flex: 1; padding: 20px; gap: 20px; min-height: 0; overflow: hidden; }
-.left-panel { flex: 1.4; display: flex; flex-direction: column; min-height: 0; overflow-y: auto; overflow-x: hidden; }
-.left-panel::-webkit-scrollbar { width: 6px; }
-.left-panel::-webkit-scrollbar-thumb { background: rgba(0, 255, 204, 0.4); border-radius: 4px; }
+
+
+.left-panel { flex: 1.4; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.panel-title { flex-shrink: 0; margin-bottom: 10px; }
+
+
 .right-panel { flex: 1; display: flex; flex-direction: column; overflow-y: auto; padding-right: 10px; min-height: 0; }
 .right-panel::-webkit-scrollbar { width: 6px; }
 .right-panel::-webkit-scrollbar-thumb { background: rgba(0, 255, 204, 0.4); border-radius: 4px; }
@@ -40,7 +43,16 @@ body { height: 100vh; display: flex; flex-direction: column; color: #fff; overfl
 
 
 /* === CLĂDIRE 3D GIGANT (Bază 350px, Înălțime 200px) === */
-#building-wrapper { min-height: 100%; perspective: 3000px; display: flex; align-items: flex-start; justify-content: center; padding-top: 100px; padding-bottom: 200px; }
+#building-wrapper { 
+    flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden;
+    perspective: 3000px; display: flex; 
+    align-items: flex-start; justify-content: center; 
+    padding-top: 100px; padding-bottom: 100px; 
+}
+#building-wrapper::-webkit-scrollbar { width: 6px; }
+#building-wrapper::-webkit-scrollbar-thumb { background: rgba(0, 255, 204, 0.4); border-radius: 4px; }
+
+
 #building-container { position: relative; width: 350px; height: 350px; transform-style: preserve-3d; }
 .floor-level { position: absolute; width: 100%; height: 100%; transform-style: preserve-3d; transition: transform 0.5s ease; }
 
@@ -480,3 +492,66 @@ body { height: 100vh; display: flex; flex-direction: column; color: #fff; overfl
     cursor: not-allowed;
     opacity: 0.4;
 }
+
+/* === PANOU LOG EVENIMENTE === */
+.event-log-panel {
+    flex-shrink: 0;
+    margin-top: 10px;
+    margin-bottom: 0;
+    padding: 12px 15px !important;
+    max-height: 200px;
+    display: flex;
+    flex-direction: column;
+}
+
+.event-log-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    flex-shrink: 0;
+}
+
+.event-log-header h3 {
+    font-size: 0.9rem;
+    color: #00ffcc;
+    margin: 0;
+}
+
+.event-log-list {
+    flex: 1;
+    overflow-y: auto;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 0.78rem;
+    line-height: 1.6;
+    padding-right: 6px;
+    min-height: 60px;
+}
+.event-log-list::-webkit-scrollbar { width: 4px; }
+.event-log-list::-webkit-scrollbar-thumb { background: rgba(0, 255, 204, 0.3); border-radius: 2px; }
+
+.log-entry {
+    padding: 3px 6px;
+    border-radius: 3px;
+    margin-bottom: 2px;
+    border-left: 2px solid transparent;
+    color: #bbb;
+    animation: logFadeIn 0.3s ease;
+}
+.log-entry.log-info    { border-left-color: #00ffcc; }
+.log-entry.log-warn    { border-left-color: #ff9f43; color: #ffb870; }
+.log-entry.log-danger  { border-left-color: #ff4757; color: #ff8896; }
+.log-entry.log-success { border-left-color: #2ecc71; color: #6de898; }
+
+.log-time {
+    color: #555;
+    font-size: 0.7rem;
+    margin-right: 8px;
+    font-weight: normal;
+}
+
+@keyframes logFadeIn {
+    from { opacity: 0; transform: translateX(-10px); }
+    to   { opacity: 1; transform: translateX(0); }
+}
+
