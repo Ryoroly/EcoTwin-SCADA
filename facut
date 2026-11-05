@@ -302,3 +302,62 @@ Rulezi 2 simulări cu aceleași condiții de start (aceeași temp inițială, ex
 Consum cumulat (deja există)
 
 Diferența procentuală afișată explicit: „Auto: −47% consum"
+
+
+🎯 Ce urmează (în ordine, după ce validezi scriptul)
+Pasul 2 — Buton + parser în site (~30 min)
+Buton 📂 Încarcă prognoză în top-bar (lângă „Energie")
+
+<input type="file" accept=".json"> ascuns
+
+FileReader → parse → window.forecast
+
+Validare minimă (schema corectă)
+
+Status în panou: „✅ Prognoză: 7 zile, 3 etaje, seed 42"
+
+Pasul 3 — Refactor fizică (~1h)
+Extrage computePhysicsStep(floorsState, params) → funcție pură
+
+Extrage predictFuture(startState, paramsFn, actionFn, horizon)
+
+Comportamentul live rămâne identic — doar refactor
+
+Pasul 4 — Al 3-lea mod „AI Predictive" (~2h)
+Adaugi opțiune în sim-mode: ai
+
+runAIOptimizer():
+
+Ia 3 strategii candidate: (a) setback, (b) pre-heat 30 min, (c) pre-heat X min calculat din fizică
+
+Rulează predictFuture pe 4h pentru fiecare
+
+Calculează energy + comfort_violation_penalty
+
+Alege scenariul câștigător → aplică primul pas
+
+Butonul AI folosește forecast_week.json pentru ext_temp și people_per_floor
+
+Pasul 5 — Comparație 3-way (~1h)
+Grafic în istoric cu 3 curbe: Manual / Auto / AI
+
+Afișează „AI: −X% față de Manual, −Y% față de Auto"
+
+Bonus: grafic temperatură vs. bandă de confort (arată că AI-ul respectă confortul)
+
+📌 Răspuns scurt la întrebarea ta
+„cum as putea sa incep sa facc partea cu ai"
+
+Exact cum ai zis. Ordinea ta e corectă:
+
+✅ Acum — scriptul Python (îl ai mai sus, rulează-l)
+
+Apoi — upload în site
+
+Apoi — refactor fizică + predictFuture
+
+Apoi — modul AI care optimizează
+
+Apoi — comparație 3-way în istoric
+
+Nu modifica site-ul încă. Rulează scriptul Python de 2-3 ori, joacă-te cu parametrii, uită-te la forecast_week.json să înțelegi structura. Când ești mulțumit de cum arată datele → spune-mi și atacăm pasul 2 (upload-ul). 🎯
