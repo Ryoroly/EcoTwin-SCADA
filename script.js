@@ -27,9 +27,15 @@ const THERMAL_MASS_DEFAULT = 1.0;
 let intervalId = null;
 
 const PERSIST_KEY = 'ecoTwinSettings_v1';
-
-// 🆕 FIX LOG: cooldown între log-uri HVAC per etaj (minute virtuale)
 const HVAC_LOG_COOLDOWN_MIN = 60;
+
+// VREME VARIABILĂ
+let weatherMode = 'fixed';
+let weatherData = null;
+let currentExtTemp = 5;
+
+// 🆕 GAUGE — valoare animată smooth
+let gaugeDisplayPower = 0;
 
 // ============================================================
 //  DOM
@@ -63,6 +69,13 @@ const modalHistory = document.getElementById('history-modal');
 const btnCloseModal = document.getElementById('close-modal');
 const historyBody = document.getElementById('history-body');
 
+const btnUploadWeather = document.getElementById('btn-upload-weather');
+const weatherFileInput = document.getElementById('weather-file-input');
+const weatherModeFixed = document.getElementById('weather-mode-fixed');
+const weatherModeVariable = document.getElementById('weather-mode-variable');
+const weatherTempValue = document.getElementById('weather-temp-value');
+const weatherSourceLabel = document.getElementById('weather-source-label');
+
 // ============================================================
 //  TIMER
 // ============================================================
@@ -87,7 +100,6 @@ if (inputThermalMass) {
     inputThermalMass.addEventListener('input', (e) => {
         thermalMass = parseFloat(e.target.value);
         document.getElementById('val-thermal-mass').innerText = thermalMass.toFixed(2);
-        // 🆕 FIX LOG: nu mai loghez la fiecare mișcare (era spam)
     });
 }
 
@@ -97,13 +109,152 @@ function getValidNumber(inputEl, fallback, min = -100, max = 10000) {
     return Math.max(min, Math.min(max, val));
 }
 
-// 🆕 FIX LOG: categorii HVAC pentru decizie de logare
-function hvacCategory(state) {
-    if (state === 'heating') return 'heat';
-    if (state === 'cooling') return 'cool';
-    if (state === 'ventilating') return 'vent';
-    return 'idle';
+// ============================================================
+//  🌡️ VREME — funcții
+// ============================================================
+function getExtTempAt(minute) {
+    if (weatherMode === 'variable' && weatherData && weatherData.hourly_temp.length > 0) {
+        const hours = weatherData.hourly_temp.length;
+        const hourFloat = minute / 60;
+        const h0 = Math.floor(hourFloat) % hours;
+        const h1 = (h0 + 1) % hours;
+        const t = hourFloat - Math.floor(hourFloat);
+        return weatherData.hourly_temp[h0] * (1 - t) + weatherData.hourly_temp[h1] * t;
+    }
+    return getValidNumber(inputExtTemp, 5, -30, 50);
 }
+
+function updateWeatherDisplay() {
+    if (weatherTempValue) {
+        weatherTempValue.innerText = currentExtTemp.toFixed(1) + '°C';
+        if (currentExtTemp < 0) weatherTempValue.style.color = '#74b9ff';
+        else if (currentExtTemp < 15) weatherTempValue.style.color = '#00ffcc';
+        else if (currentExtTemp < 25) weatherTempValue.style.color = '#f39c12';
+        else weatherTempValue.style.color = '#ff4757';
+    }
+}
+
+function applyWeatherModeUI() {
+    const isVariable = weatherMode === 'variable';
+
+    weatherModeFixed.checked = !isVariable;
+    weatherModeVariable.checked = isVariable;
+
+    inputExtTemp.disabled = isVariable;
+    inputExtTemp.style.opacity = isVariable ? '0.4' : '1';
+    inputExtTemp.style.cursor = isVariable ? 'not-allowed' : '';
+
+    if (isVariable) {
+        if (weatherData) {
+            weatherSourceLabel.innerText = `Fișier · ${weatherData.hourly_temp.length}h`;
+            weatherSourceLabel.classList.add('variable');
+        } else {
+            weatherSourceLabel.innerText = '⚠️ Fără fișier';
+            weatherSourceLabel.classList.add('variable');
+        }
+    } else {
+        weatherSourceLabel.innerText = 'Fixă';
+        weatherSourceLabel.classList.remove('variable');
+    }
+
+    updateWeatherDisplay();
+}
+
+function setWeatherMode(mode) {
+    if (mode === 'variable' && !weatherData) {
+        alert('⚠️ Încarcă mai întâi un fișier de vreme (butonul 📂 Vreme din top)!');
+        weatherModeFixed.checked = true;
+        weatherModeVariable.checked = false;
+        return;
+    }
+    weatherMode = mode;
+    applyWeatherModeUI();
+    saveSettings();
+}
+
+weatherModeFixed.addEventListener('change', () => {
+    if (weatherModeFixed.checked) {
+        setWeatherMode('fixed');
+        logEvent('🌡 Sursă temp: Fixă', 'info');
+    }
+});
+
+weatherModeVariable.addEventListener('change', () => {
+    if (weatherModeVariable.checked) {
+        setWeatherMode('variable');
+        if (weatherData) {
+            logEvent(`🌡 Sursă temp: Variabilă (${weatherData.hourly_temp.length}h din ${weatherData.filename})`, 'success');
+        }
+    }
+});
+
+btnUploadWeather.addEventListener('click', () => {
+    weatherFileInput.click();
+});
+
+weatherFileInput.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    try {
+        const text = await file.text();
+        const data = JSON.parse(text);
+
+        let hourlyTemp = null;
+
+        if (Array.isArray(data.hourly_temp)) {
+            hourlyTemp = data.hourly_temp;
+        } else if (Array.isArray(data.hourly)) {
+            hourlyTemp = data.hourly.map(h => {
+                if (typeof h === 'number') return h;
+                if (typeof h.temp === 'number') return h.temp;
+                if (typeof h.temperature === 'number') return h.temperature;
+                return 5;
+            });
+        } else if (Array.isArray(data)) {
+            hourlyTemp = data;
+        }
+
+        if (!hourlyTemp || hourlyTemp.length === 0) {
+            throw new Error('Fișier invalid — nu găsesc array "hourly_temp"');
+        }
+
+        hourlyTemp = hourlyTemp.map(v => {
+            const n = parseFloat(v);
+            if (isNaN(n)) throw new Error('Valoare ne-numerică în fișier');
+            return n;
+        });
+
+        weatherData = {
+            hourly_temp: hourlyTemp,
+            metadata: data.metadata || {},
+            filename: file.name,
+            config: data.config || {},
+        };
+
+        weatherMode = 'variable';
+        applyWeatherModeUI();
+        currentExtTemp = getExtTempAt(simulatedMinutes);
+        updateWeatherDisplay();
+        saveSettings();
+
+        const minT = Math.min(...hourlyTemp);
+        const maxT = Math.max(...hourlyTemp);
+        logEvent(`📂 Vreme încărcată: ${file.name} · ${hourlyTemp.length}h · ${minT.toFixed(1)}…${maxT.toFixed(1)}°C`, 'success');
+    } catch (err) {
+        alert('Eroare la încărcarea fișierului:\n' + err.message);
+        logEvent(`❌ Upload vreme eșuat: ${err.message}`, 'danger');
+    }
+
+    e.target.value = '';
+});
+
+inputExtTemp.addEventListener('input', () => {
+    if (weatherMode === 'fixed') {
+        currentExtTemp = getValidNumber(inputExtTemp, 5, -30, 50);
+        updateWeatherDisplay();
+    }
+});
 
 // ============================================================
 //  GENERARE CLĂDIRE
@@ -200,7 +351,7 @@ function generateBuilding() {
             peopleCount: 10,
             _prevHvac: 'maintaining',
             _prevCo2Level: 0,
-            _lastHvacLogMinute: -999   // 🆕 FIX LOG: cooldown per etaj
+            _lastHvacLogMinute: -999
         });
 
         document.getElementById(`target-f${i}`).addEventListener('change', (e) => {
@@ -315,6 +466,9 @@ function selectFloor(index) {
     floorDetailPanel.classList.remove('floor-panel-hidden');
     document.getElementById('floor-detail-title').innerText = `NIVEL ${index + 1}`;
     updateFloorDetailPanel(floorsData[index]);
+
+    // 🆕 Reset smooth value la valoarea reală a noului etaj
+    gaugeDisplayPower = floorsData[index].lastPower;
 }
 
 function deselectFloor() {
@@ -343,6 +497,8 @@ function updateFloorDetailPanel(floor) {
     };
     document.getElementById('detail-hvac').innerText = hvacLabels[floor.hvacState] || floor.hvacState;
 
+    // 🆕 Gauge-ul NU se mai desenează aici — e gestionat de animateGauge() cu interpolare smooth
+
     const targetSlider = document.getElementById('detail-target');
     targetSlider.disabled = isFire || isAuto;
     targetSlider.value = floor.targetTemp;
@@ -356,6 +512,84 @@ function updateFloorDetailPanel(floor) {
     peopleSlider.disabled = isFire || isAuto || !floor.hasPeople;
     peopleSlider.value = floor.peopleCount;
     document.getElementById('detail-people-val').innerText = floor.hasPeople ? floor.peopleCount : 0;
+}
+
+// ============================================================
+//  GAUGE CONSUM (Desenează un cadran semicircular)
+// ============================================================
+function drawFloorGauge(power, maxPower) {
+    const canvas = document.getElementById('floor-gauge-canvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width;
+    const h = canvas.height;
+    const cx = w / 2;
+    const cy = h - 30;
+    const radius = Math.min(w / 2, h) - 40;
+
+    ctx.clearRect(0, 0, w, h);
+
+    // Fundal arc (0 la max)
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, Math.PI, 2 * Math.PI);
+    ctx.lineWidth = 14;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+    ctx.stroke();
+
+    // Valoare arc
+    const ratio = Math.min(1, Math.max(0, power / maxPower));
+    const endAngle = Math.PI + ratio * Math.PI;
+
+    let color = '#00ffcc';
+    if (ratio > 0.8) color = '#ff4757';
+    else if (ratio > 0.5) color = '#ff9f43';
+
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, Math.PI, endAngle);
+    ctx.strokeStyle = color;
+    ctx.stroke();
+
+    // Text putere
+    ctx.fillStyle = color;
+    ctx.font = 'bold 24px "Segoe UI", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(power.toFixed(2), cx, cy - 20);
+
+    // Text kW
+    ctx.font = '13px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#aaa';
+    ctx.fillText('kW', cx, cy + 5);
+
+    // Text max (sub cadran)
+    ctx.font = '11px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#666';
+    ctx.fillText(`0 - ${maxPower.toFixed(0)} kW`, cx, cy + radius + 18);
+}
+
+// ============================================================
+//  🆕 GAUGE ANIMATION LOOP (interpolare smooth la 60fps)
+// ============================================================
+function animateGauge() {
+    if (selectedFloorIndex !== null && floorsData[selectedFloorIndex]) {
+        const floor = floorsData[selectedFloorIndex];
+        const targetPower = floor.lastPower;
+        const areaMultiplier = getValidNumber(inputArea, 200, 50, 2000) / 100;
+        const maxPower = 5.0 * areaMultiplier;
+
+        // Interpolare lină (EMA):
+        // 0.08 per frame la 60fps → ajunge la țintă în ~0.5 secunde
+        const smoothing = 0.08;
+        gaugeDisplayPower += (targetPower - gaugeDisplayPower) * smoothing;
+
+        // Dacă e foarte aproape, snap ca să nu rămână diferențe infinitezimale
+        if (Math.abs(targetPower - gaugeDisplayPower) < 0.005) {
+            gaugeDisplayPower = targetPower;
+        }
+
+        drawFloorGauge(gaugeDisplayPower, maxPower);
+    }
+    requestAnimationFrame(animateGauge);
 }
 
 document.getElementById('floor-detail-close').addEventListener('click', deselectFloor);
@@ -409,7 +643,7 @@ document.addEventListener('click', (e) => {
 });
 
 // ============================================================
-//  LOG EVENIMENTE — 🆕 FIX LOG: limită mărită la 200
+//  LOG EVENIMENTE
 // ============================================================
 function logEvent(message, type = 'info') {
     const container = document.getElementById('event-log');
@@ -421,7 +655,6 @@ function logEvent(message, type = 'info') {
     entry.innerHTML = `<span class="log-time">${timeStr}</span>${message}`;
     container.appendChild(entry);
 
-    // 🆕 FIX LOG: 200 în loc de 50
     while (container.children.length > 200) {
         container.removeChild(container.firstChild);
     }
@@ -479,7 +712,6 @@ function simulationTick() {
     if (!isRunning) return;
     if (fireModeActive) return;
 
-    const extTemp = getValidNumber(inputExtTemp, 5, -30, 50);
     const thermalLossCoeff = parseFloat(inputThermal.value);
     const areaMultiplier = getValidNumber(inputArea, 200, 50, 2000) / 100;
     const numFloors = floorsData.length;
@@ -489,6 +721,9 @@ function simulationTick() {
 
     for (let step = 0; step < timeMultiplier; step++) {
         simulatedMinutes += 1;
+
+        const extTemp = getExtTempAt(simulatedMinutes);
+        currentExtTemp = extTemp;
 
         if (simModeSelect.value === 'auto' && autoConfig.isApplied && simulatedMinutes % 5 === 0) {
             runAutoOptimizer();
@@ -586,13 +821,6 @@ function simulationTick() {
             powerSumForTick += totalFloorPower;
             tickEnergy += totalFloorPower;
 
-            // ==================================================
-            //  🆕 FIX LOG — Tranziții HVAC cu cooldown
-            //  Loghează DOAR:
-            //   1. Intrare în heating/cooling (cu cooldown 60 min virtuale)
-            //   2. Orice legat de ventilating (rar, important)
-            //  NU loghează niciodată tranziții → maintaining
-            // ==================================================
             if (floor._prevHvac !== floor.hvacState) {
                 const labels = {
                     heating: 'Încălzire', cooling: 'Răcire',
@@ -600,16 +828,11 @@ function simulationTick() {
                 };
 
                 let shouldLog = false;
-
                 if (floor.hvacState === 'ventilating' || floor._prevHvac === 'ventilating') {
-                    // Ventilare = mereu log (rar, important pentru CO₂)
                     shouldLog = true;
                 } else if (floor.hvacState === 'heating' || floor.hvacState === 'cooling') {
-                    // Intrare în heating/cooling = log cu cooldown
-                    const sinceLastLog = simulatedMinutes - floor._lastHvacLogMinute;
-                    shouldLog = sinceLastLog >= HVAC_LOG_COOLDOWN_MIN;
+                    shouldLog = (simulatedMinutes - floor._lastHvacLogMinute) >= HVAC_LOG_COOLDOWN_MIN;
                 }
-                // Tranziție → maintaining: nu log (doar update _prevHvac)
 
                 if (shouldLog) {
                     logEvent(`Etaj ${floor.level}: ${labels[floor._prevHvac]} → ${labels[floor.hvacState]}`, 'info');
@@ -671,6 +894,8 @@ function simulationTick() {
         syncAutoUI();
     }
 
+    updateWeatherDisplay();
+
     totalEnergy += tickEnergy / 60;
     displayEnergy.innerText = totalEnergy.toFixed(2);
 }
@@ -695,6 +920,10 @@ document.getElementById('btn-apply-settings').addEventListener('click', () => {
     const wasAutoApplied = simModeSelect.value === 'auto' && autoConfig.isApplied;
 
     generateBuilding();
+
+    currentExtTemp = getExtTempAt(0);
+    updateWeatherDisplay();
+
     logEvent(`🏢 Clădire reconstruită: ${inputFloors.value} etaje, ${inputArea.value} m²`, 'info');
 
     if (wasAutoApplied) {
@@ -726,6 +955,10 @@ inputInitTemp.addEventListener('change', () => {
 btnStart.addEventListener('click', () => {
     if (simModeSelect.value === 'auto' && !autoConfig.isApplied) {
         alert('⚠️ Apasă mai întâi "Aplică Configurație" în panoul Auto!');
+        return;
+    }
+    if (weatherMode === 'variable' && !weatherData) {
+        alert('⚠️ Modul vreme variabilă activ dar nu ai încărcat niciun fișier!');
         return;
     }
     if (fireModeActive) {
@@ -772,6 +1005,9 @@ document.getElementById('btn-reset').addEventListener('click', async () => {
     const wasAutoApplied = simModeSelect.value === 'auto' && autoConfig.isApplied;
 
     generateBuilding();
+
+    currentExtTemp = getExtTempAt(0);
+    updateWeatherDisplay();
 
     if (wasAutoApplied) {
         runAutoOptimizer();
@@ -882,7 +1118,10 @@ function saveToHistory() {
         settings: `${inputFloors.value} Etaje, ${inputArea.value} m²`,
         floors: parseInt(inputFloors.value),
         area: getValidNumber(inputArea, 200, 50, 2000),
-        extTemp: getValidNumber(inputExtTemp, 5, -30, 50),
+        extTemp: weatherMode === 'variable'
+            ? `variabil (${weatherData ? weatherData.hourly_temp.length + 'h' : '?'})`
+            : getValidNumber(inputExtTemp, 5, -30, 50),
+        weatherMode: weatherMode,
         initTemp: getValidNumber(inputInitTemp, 10, -20, 50),
         thermalCoeff: parseFloat(inputThermal.value),
         thermalMass: thermalMass,
@@ -932,7 +1171,9 @@ function renderHistory() {
 
         const totalPeople = (record.occupancyMap || []).reduce((a, b) => a + b, 0);
         const peopleInfo = totalPeople > 0 ? `👥 ${totalPeople}` : '';
-        const extTempInfo = record.extTemp !== undefined ? `🌡 ${record.extTemp}°C` : '';
+        const extTempInfo = record.extTemp !== undefined
+            ? `🌡 ${typeof record.extTemp === 'number' ? record.extTemp + '°C' : record.extTemp}`
+            : '';
         const massInfo = record.thermalMass && record.thermalMass !== 1 ? `🧱 ${record.thermalMass}x` : '';
         const extraInfo = [peopleInfo, extTempInfo, massInfo].filter(x => x).join(' · ');
         const settingsDisplay = extraInfo
@@ -1435,6 +1676,10 @@ function applyAutoConfig() {
     displayStatus.style.color = '#00ffcc';
 
     generateBuilding();
+
+    currentExtTemp = getExtTempAt(0);
+    updateWeatherDisplay();
+
     runAutoOptimizer();
     syncAutoUI();
 
@@ -1456,6 +1701,12 @@ function saveSettings() {
             extTemp: inputExtTemp.value,
             thermalMass: inputThermalMass ? inputThermalMass.value : '1',
             simMode: simModeSelect.value,
+            weatherMode: weatherMode,
+            weatherData: weatherData ? {
+                hourly_temp: weatherData.hourly_temp,
+                filename: weatherData.filename,
+                metadata: weatherData.metadata,
+            } : null,
             auto: {
                 workStart: document.getElementById('auto-work-start').value,
                 workEnd: document.getElementById('auto-work-end').value,
@@ -1495,6 +1746,22 @@ function loadSettings() {
             thermalMass = parseFloat(data.thermalMass);
             document.getElementById('val-thermal-mass').innerText = thermalMass.toFixed(2);
         }
+
+        if (data.weatherData && Array.isArray(data.weatherData.hourly_temp)) {
+            weatherData = {
+                hourly_temp: data.weatherData.hourly_temp,
+                filename: data.weatherData.filename || 'restaurat',
+                metadata: data.weatherData.metadata || {},
+            };
+        }
+        if (data.weatherMode === 'variable' && weatherData) {
+            weatherMode = 'variable';
+        } else if (data.weatherMode === 'variable' && !weatherData) {
+            weatherMode = 'fixed';
+        } else if (data.weatherMode) {
+            weatherMode = data.weatherMode;
+        }
+
         if (data.auto) {
             const a = data.auto;
             if (a.workStart) document.getElementById('auto-work-start').value = a.workStart;
@@ -1571,5 +1838,11 @@ function loadSettings() {
 //  BOOT
 // ============================================================
 loadSettings();
+applyWeatherModeUI();
+currentExtTemp = getExtTempAt(simulatedMinutes);
+updateWeatherDisplay();
 generateBuilding();
 logEvent('✓ Sistem inițializat - 3 etaje, 200 m²', 'success');
+
+// 🆕 Pornire loop gauge (requestAnimationFrame)
+requestAnimationFrame(animateGauge);
