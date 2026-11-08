@@ -29,13 +29,13 @@ let intervalId = null;
 const PERSIST_KEY = 'ecoTwinSettings_v1';
 const HVAC_LOG_COOLDOWN_MIN = 60;
 
-// VREME VARIABILĂ
 let weatherMode = 'fixed';
 let weatherData = null;
 let currentExtTemp = 5;
 
-// 🆕 GAUGE — valoare animată smooth
 let gaugeDisplayPower = 0;
+
+let useRoomsFromFile = false;
 
 // ============================================================
 //  DOM
@@ -110,7 +110,7 @@ function getValidNumber(inputEl, fallback, min = -100, max = 10000) {
 }
 
 // ============================================================
-//  🌡️ VREME — funcții
+//  🌡️ VREME + CAMERE
 // ============================================================
 function getExtTempAt(minute) {
     if (weatherMode === 'variable' && weatherData && weatherData.hourly_temp.length > 0) {
@@ -225,12 +225,23 @@ weatherFileInput.addEventListener('change', async (e) => {
             return n;
         });
 
+        let roomsSchedule = null;
+        if (Array.isArray(data.rooms_schedule)) {
+            roomsSchedule = data.rooms_schedule.map(rooms => {
+                if (!Array.isArray(rooms)) return [0, 0, 0, 0];
+                return rooms.map(v => Math.max(0, Math.round(parseFloat(v) || 0)));
+            });
+        }
+
         weatherData = {
             hourly_temp: hourlyTemp,
+            rooms_schedule: roomsSchedule,
             metadata: data.metadata || {},
             filename: file.name,
             config: data.config || {},
         };
+
+        useRoomsFromFile = !!roomsSchedule;
 
         weatherMode = 'variable';
         applyWeatherModeUI();
@@ -240,7 +251,16 @@ weatherFileInput.addEventListener('change', async (e) => {
 
         const minT = Math.min(...hourlyTemp);
         const maxT = Math.max(...hourlyTemp);
-        logEvent(`📂 Vreme încărcată: ${file.name} · ${hourlyTemp.length}h · ${minT.toFixed(1)}…${maxT.toFixed(1)}°C`, 'success');
+        const roomsInfo = roomsSchedule ? ' + camere' : '';
+        logEvent(`📂 Vreme încărcată: ${file.name} · ${hourlyTemp.length}h${roomsInfo} · ${minT.toFixed(1)}…${maxT.toFixed(1)}°C`, 'success');
+
+        if (roomsSchedule) {
+            // Arată un preview al distribuției în camere
+            const firstWorkingHour = roomsSchedule.find(r => r.some(p => p > 0));
+            if (firstWorkingHour) {
+                logEvent(`🏢 Camere: ${roomsSchedule.length}h, prima oră cu persoane: [${firstWorkingHour.join(', ')}] (total ${firstWorkingHour.reduce((a,b)=>a+b,0)})`, 'info');
+            }
+        }
     } catch (err) {
         alert('Eroare la încărcarea fișierului:\n' + err.message);
         logEvent(`❌ Upload vreme eșuat: ${err.message}`, 'danger');
@@ -305,9 +325,31 @@ function generateBuilding() {
         floorDiv.className = 'floor-level';
         floorDiv.style.transform = `translateZ(${(i - 1) * floorHeight}px)`;
 
+        // 🆕 Camerele sunt acum în .face-top (tavan), nu în .face-base (podea)
         floorDiv.innerHTML = `
             <div class="face-base" id="base-f${i}"></div>
-            <div class="face-top"></div>
+            <div class="face-top">
+                ${i === numFloors ? `
+                <div class="rooms-layout">
+                    <div class="room" id="room-f${i}-r1">
+                        <div class="bulb" id="bulb-f${i}-r1"></div>
+                        <div class="room-people" id="room-people-f${i}-r1"></div>
+                    </div>
+                    <div class="room" id="room-f${i}-r2">
+                        <div class="bulb" id="bulb-f${i}-r2"></div>
+                        <div class="room-people" id="room-people-f${i}-r2"></div>
+                    </div>
+                    <div class="room" id="room-f${i}-r3">
+                        <div class="bulb" id="bulb-f${i}-r3"></div>
+                        <div class="room-people" id="room-people-f${i}-r3"></div>
+                    </div>
+                    <div class="room" id="room-f${i}-r4">
+                        <div class="bulb" id="bulb-f${i}-r4"></div>
+                        <div class="room-people" id="room-people-f${i}-r4"></div>
+                    </div>
+                </div>
+                ` : ''}
+            </div>
             <div class="face-front">
                 <div class="f-header">
                     <div class="f-title">NIVEL ${i} <span style="color:#aaa; font-weight:normal; text-transform:none;">(<span id="power-f${i}">0.0</span>kW)</span></div>
@@ -351,7 +393,15 @@ function generateBuilding() {
             peopleCount: 10,
             _prevHvac: 'maintaining',
             _prevCo2Level: 0,
-            _lastHvacLogMinute: -999
+            _lastHvacLogMinute: -999,
+            rooms: [
+                { id: 1, people: 0, occupied: false },
+                { id: 2, people: 0, occupied: false },
+                { id: 3, people: 0, occupied: false },
+                { id: 4, people: 0, occupied: false }
+            ],
+            _lastRoomMove: -999,
+            lightingPower: 0
         });
 
         document.getElementById(`target-f${i}`).addEventListener('change', (e) => {
@@ -380,6 +430,106 @@ function generateBuilding() {
             if (selectedFloorIndex === i - 1) updateFloorDetailPanel(floorsData[i - 1]);
         });
     }
+}
+// ============================================================
+//  🆕 DISTRIBUȚIE PERSOANE ÎN CAMERE (cu update UI)
+// ============================================================
+function updateRoomUI(floor, roomIdx, count) {
+    const bulb = document.getElementById(`bulb-f${floor.level}-r${roomIdx + 1}`);
+    const peopleEl = document.getElementById(`room-people-f${floor.level}-r${roomIdx + 1}`);
+    const roomEl = document.getElementById(`room-f${floor.level}-r${roomIdx + 1}`);
+
+    const occupied = count > 0;
+
+    if (bulb) bulb.classList.toggle('on', occupied);
+    if (roomEl) roomEl.classList.toggle('has-people', occupied);
+
+    if (peopleEl) {
+        if (occupied) {
+            peopleEl.innerText = `${count} 👤`;
+            peopleEl.classList.add('visible');
+        } else {
+            peopleEl.classList.remove('visible');
+        }
+    }
+}
+
+function distributePeopleToRooms(floor, areaMultiplier) {
+    // Doar ultimul etaj are camere
+    if (floor.level !== floorsData.length) {
+        floor.lightingPower = 0;
+        return;
+    }
+
+    const totalPeople = floor.hasPeople ? floor.peopleCount : 0;
+
+    if (totalPeople === 0) {
+        floor.rooms.forEach((r, i) => {
+            r.people = 0;
+            r.occupied = false;
+            updateRoomUI(floor, i, 0);
+        });
+        floor.lightingPower = 0;
+        return;
+    }
+
+    // 🆕 Dacă avem rooms_schedule din fișier, îl folosim
+    if (useRoomsFromFile && weatherData && weatherData.rooms_schedule && weatherData.rooms_schedule.length > 0) {
+        const hoursTotal = weatherData.rooms_schedule.length;
+        const hourIndex = Math.floor(simulatedMinutes / 60) % hoursTotal;
+        const schedule = weatherData.rooms_schedule[hourIndex];
+
+        // Aplică pe camere (schedule-ul e deja scalat corect)
+        floor.rooms.forEach((r, i) => {
+            const count = schedule[i] || 0;
+            r.people = count;
+            r.occupied = count > 0;
+            updateRoomUI(floor, i, count);
+        });
+
+        const activeRooms = floor.rooms.filter(r => r.occupied).length;
+        floor.lightingPower = activeRooms * 0.15 * areaMultiplier;
+        return;
+    }
+
+    // 🆕 Fallback: 5-15 persoane per cameră ocupată, schimbare la 3 ore
+    if (floor._lastRoomMove === undefined || simulatedMinutes - floor._lastRoomMove >= 180) {
+        floor._lastRoomMove = simulatedMinutes;
+
+        // Reset
+        floor.rooms.forEach((r, i) => {
+            r.people = 0;
+            r.occupied = false;
+        });
+
+        // Câte camere ocupate (1-4)
+        const numOccupied = Math.max(1, Math.min(4, Math.ceil(totalPeople / 5)));
+        const indices = [0, 1, 2, 3].sort(() => Math.random() - 0.5);
+
+        // Distribuie 5-15 per cameră (până epuizăm totalPeople)
+        let peopleLeft = totalPeople;
+        for (let i = 0; i < numOccupied && peopleLeft > 0; i++) {
+            const idx = indices[i];
+            const minPerRoom = 5;
+            const maxPerRoom = 15;
+            let count = Math.min(
+                peopleLeft - (numOccupied - i - 1) * Math.min(minPerRoom, Math.floor(peopleLeft / (numOccupied - i))),
+                Math.floor(Math.random() * (maxPerRoom - minPerRoom + 1)) + minPerRoom
+            );
+            count = Math.max(1, Math.min(count, peopleLeft));
+            floor.rooms[idx].people = count;
+            floor.rooms[idx].occupied = count > 0;
+            peopleLeft -= count;
+        }
+    }
+
+    // Update UI pentru toate camerele
+    floor.rooms.forEach((r, i) => {
+        updateRoomUI(floor, i, r.people);
+    });
+
+    const activeRooms = floor.rooms.filter(r => r.occupied).length;
+    floor.lightingPower = activeRooms * 0.15 * areaMultiplier;
 }
 
 // ============================================================
@@ -467,7 +617,6 @@ function selectFloor(index) {
     document.getElementById('floor-detail-title').innerText = `NIVEL ${index + 1}`;
     updateFloorDetailPanel(floorsData[index]);
 
-    // 🆕 Reset smooth value la valoarea reală a noului etaj
     gaugeDisplayPower = floorsData[index].lastPower;
 }
 
@@ -497,8 +646,6 @@ function updateFloorDetailPanel(floor) {
     };
     document.getElementById('detail-hvac').innerText = hvacLabels[floor.hvacState] || floor.hvacState;
 
-    // 🆕 Gauge-ul NU se mai desenează aici — e gestionat de animateGauge() cu interpolare smooth
-
     const targetSlider = document.getElementById('detail-target');
     targetSlider.disabled = isFire || isAuto;
     targetSlider.value = floor.targetTemp;
@@ -515,7 +662,7 @@ function updateFloorDetailPanel(floor) {
 }
 
 // ============================================================
-//  GAUGE CONSUM (Desenează un cadran semicircular)
+//  GAUGE CONSUM
 // ============================================================
 function drawFloorGauge(power, maxPower) {
     const canvas = document.getElementById('floor-gauge-canvas');
@@ -529,14 +676,12 @@ function drawFloorGauge(power, maxPower) {
 
     ctx.clearRect(0, 0, w, h);
 
-    // Fundal arc (0 la max)
     ctx.beginPath();
     ctx.arc(cx, cy, radius, Math.PI, 2 * Math.PI);
     ctx.lineWidth = 14;
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
     ctx.stroke();
 
-    // Valoare arc
     const ratio = Math.min(1, Math.max(0, power / maxPower));
     const endAngle = Math.PI + ratio * Math.PI;
 
@@ -549,40 +694,34 @@ function drawFloorGauge(power, maxPower) {
     ctx.strokeStyle = color;
     ctx.stroke();
 
-    // Text putere
     ctx.fillStyle = color;
     ctx.font = 'bold 24px "Segoe UI", sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(power.toFixed(2), cx, cy - 20);
 
-    // Text kW
     ctx.font = '13px "Segoe UI", sans-serif';
     ctx.fillStyle = '#aaa';
     ctx.fillText('kW', cx, cy + 5);
 
-    // Text max (sub cadran)
     ctx.font = '11px "Segoe UI", sans-serif';
     ctx.fillStyle = '#666';
     ctx.fillText(`0 - ${maxPower.toFixed(0)} kW`, cx, cy + radius + 18);
 }
 
 // ============================================================
-//  🆕 GAUGE ANIMATION LOOP (interpolare smooth la 60fps)
+//  ANIMAȚIE GAUGE
 // ============================================================
 function animateGauge() {
     if (selectedFloorIndex !== null && floorsData[selectedFloorIndex]) {
         const floor = floorsData[selectedFloorIndex];
         const targetPower = floor.lastPower;
         const areaMultiplier = getValidNumber(inputArea, 200, 50, 2000) / 100;
-        const maxPower = 5.0 * areaMultiplier;
+        const maxPower = 6.0 * areaMultiplier;
 
-        // Interpolare lină (EMA):
-        // 0.08 per frame la 60fps → ajunge la țintă în ~0.5 secunde
         const smoothing = 0.08;
         gaugeDisplayPower += (targetPower - gaugeDisplayPower) * smoothing;
 
-        // Dacă e foarte aproape, snap ca să nu rămână diferențe infinitezimale
         if (Math.abs(targetPower - gaugeDisplayPower) < 0.005) {
             gaugeDisplayPower = targetPower;
         }
@@ -816,7 +955,9 @@ function simulationTick() {
             ventTempDelta = Math.max(-0.15, Math.min(0.15, ventTempDelta));
             floor.currentTemp += ventTempDelta / thermalMass;
 
-            const totalFloorPower = hvacPower + exhaustPower;
+            distributePeopleToRooms(floor, areaMultiplier);
+
+            const totalFloorPower = hvacPower + exhaustPower + floor.lightingPower;
             floor.lastPower = totalFloorPower;
             powerSumForTick += totalFloorPower;
             tickEnergy += totalFloorPower;
@@ -1058,9 +1199,11 @@ async function activateFireMode() {
     document.querySelectorAll('.floor-level').forEach(el => el.classList.add('fire-pulse'));
     document.querySelectorAll('.vent-air').forEach(el => el.classList.add('off'));
     document.querySelectorAll('.exhaust-fan').forEach(el => el.classList.add('off'));
+    document.querySelectorAll('.bulb').forEach(el => el.classList.add('off'));
 
     floorsData.forEach(floor => {
         floor.lastPower = 0;
+        floor.lightingPower = 0;
         const powerEl = document.getElementById(`power-f${floor.level}`);
         if (powerEl) powerEl.innerText = '0.00';
     });
@@ -1081,6 +1224,7 @@ function deactivateFireMode() {
     document.querySelectorAll('.floor-level').forEach(el => el.classList.remove('fire-pulse'));
     document.querySelectorAll('.vent-air').forEach(el => el.classList.remove('off'));
     document.querySelectorAll('.exhaust-fan').forEach(el => el.classList.remove('off'));
+    document.querySelectorAll('.bulb').forEach(el => el.classList.remove('off'));
 
     if (wasRunningBeforeFire) {
         setRunning(true);
@@ -1460,6 +1604,28 @@ function distributePeople() {
     floorsData.forEach(f => { f.hasPeople = false; f.peopleCount = 0; });
     if (total <= 0) return;
 
+    // 🆕 Dacă avem rooms_schedule, ultimul etaj e gestionat de fișier
+    if (useRoomsFromFile) {
+        const nWithoutLast = n - 1;
+        if (nWithoutLast <= 0) return;
+
+        const perFloor = Math.floor(total / nWithoutLast);
+        const rem = total % nWithoutLast;
+        for (let i = 0; i < nWithoutLast; i++) {
+            floorsData[i].peopleCount = perFloor + (i < rem ? 1 : 0);
+            floorsData[i].hasPeople = floorsData[i].peopleCount > 0;
+        }
+        // Ultimul etaj → schedule
+        const last = floorsData[n - 1];
+        const hoursTotal = weatherData.rooms_schedule.length;
+        const hourIndex = Math.floor(simulatedMinutes / 60) % hoursTotal;
+        const schedule = weatherData.rooms_schedule[hourIndex];
+        const totalLast = schedule.reduce((a, b) => a + b, 0);
+        last.peopleCount = totalLast;
+        last.hasPeople = totalLast > 0;
+        return;
+    }
+
     const setFloor = (idx, count) => {
         if (idx >= 0 && idx < n) {
             floorsData[idx].peopleCount = count;
@@ -1530,7 +1696,22 @@ function runAutoOptimizer() {
     if (inWork) {
         distributePeople();
     } else {
-        floorsData.forEach(f => { f.hasPeople = false; f.peopleCount = 0; });
+        // Dacă avem fișier de camere, ultimul etaj păstrează schedule-ul
+        if (useRoomsFromFile) {
+            for (let i = 0; i < floorsData.length - 1; i++) {
+                floorsData[i].hasPeople = false;
+                floorsData[i].peopleCount = 0;
+            }
+            const last = floorsData[floorsData.length - 1];
+            const hoursTotal = weatherData.rooms_schedule.length;
+            const hourIndex = Math.floor(simulatedMinutes / 60) % hoursTotal;
+            const schedule = weatherData.rooms_schedule[hourIndex];
+            const totalLast = schedule.reduce((a, b) => a + b, 0);
+            last.peopleCount = totalLast;
+            last.hasPeople = totalLast > 0;
+        } else {
+            floorsData.forEach(f => { f.hasPeople = false; f.peopleCount = 0; });
+        }
     }
 
     floorsData.forEach((floor, i) => {
@@ -1704,6 +1885,7 @@ function saveSettings() {
             weatherMode: weatherMode,
             weatherData: weatherData ? {
                 hourly_temp: weatherData.hourly_temp,
+                rooms_schedule: weatherData.rooms_schedule,
                 filename: weatherData.filename,
                 metadata: weatherData.metadata,
             } : null,
@@ -1750,9 +1932,11 @@ function loadSettings() {
         if (data.weatherData && Array.isArray(data.weatherData.hourly_temp)) {
             weatherData = {
                 hourly_temp: data.weatherData.hourly_temp,
+                rooms_schedule: data.weatherData.rooms_schedule || null,
                 filename: data.weatherData.filename || 'restaurat',
                 metadata: data.weatherData.metadata || {},
             };
+            useRoomsFromFile = !!weatherData.rooms_schedule;
         }
         if (data.weatherMode === 'variable' && weatherData) {
             weatherMode = 'variable';
@@ -1844,5 +2028,4 @@ updateWeatherDisplay();
 generateBuilding();
 logEvent('✓ Sistem inițializat - 3 etaje, 200 m²', 'success');
 
-// 🆕 Pornire loop gauge (requestAnimationFrame)
 requestAnimationFrame(animateGauge);
