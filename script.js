@@ -6,7 +6,7 @@ let totalEnergy = 0;
 let simulatedMinutes = 0;
 
 let fireModeActive = false;
-let wasRunningBeforeFire = false;
+let gasModeActive = false;
 
 let selectedFloorIndex = null;
 let selectedScenarios = new Set();
@@ -34,8 +34,10 @@ let weatherData = null;
 let currentExtTemp = 5;
 
 let gaugeDisplayPower = 0;
-
 let useRoomsFromFile = false;
+
+// 🆕 Timere pentru animația camionului de pompieri
+let truckTimers = [];
 
 // ============================================================
 //  DOM
@@ -61,6 +63,10 @@ const btnStart = document.getElementById('btn-start');
 const btnFire = document.getElementById('btn-fire');
 const fireBanner = document.getElementById('fire-banner');
 const btnFireCancel = document.getElementById('btn-fire-cancel');
+
+const btnGas = document.getElementById('btn-gas');
+const gasBanner = document.getElementById('gas-banner');
+const btnGasCancel = document.getElementById('btn-gas-cancel');
 
 const floorDetailPanel = document.getElementById('floor-detail-panel');
 
@@ -110,7 +116,7 @@ function getValidNumber(inputEl, fallback, min = -100, max = 10000) {
 }
 
 // ============================================================
-//  🌡️ VREME + CAMERE
+//  VREME + CAMERE
 // ============================================================
 function getExtTempAt(minute) {
     if (weatherMode === 'variable' && weatherData && weatherData.hourly_temp.length > 0) {
@@ -136,10 +142,8 @@ function updateWeatherDisplay() {
 
 function applyWeatherModeUI() {
     const isVariable = weatherMode === 'variable';
-
     weatherModeFixed.checked = !isVariable;
     weatherModeVariable.checked = isVariable;
-
     inputExtTemp.disabled = isVariable;
     inputExtTemp.style.opacity = isVariable ? '0.4' : '1';
     inputExtTemp.style.cursor = isVariable ? 'not-allowed' : '';
@@ -156,7 +160,6 @@ function applyWeatherModeUI() {
         weatherSourceLabel.innerText = 'Fixă';
         weatherSourceLabel.classList.remove('variable');
     }
-
     updateWeatherDisplay();
 }
 
@@ -188,9 +191,7 @@ weatherModeVariable.addEventListener('change', () => {
     }
 });
 
-btnUploadWeather.addEventListener('click', () => {
-    weatherFileInput.click();
-});
+btnUploadWeather.addEventListener('click', () => { weatherFileInput.click(); });
 
 weatherFileInput.addEventListener('change', async (e) => {
     const file = e.target.files[0];
@@ -201,23 +202,17 @@ weatherFileInput.addEventListener('change', async (e) => {
         const data = JSON.parse(text);
 
         let hourlyTemp = null;
-
-        if (Array.isArray(data.hourly_temp)) {
-            hourlyTemp = data.hourly_temp;
-        } else if (Array.isArray(data.hourly)) {
+        if (Array.isArray(data.hourly_temp)) hourlyTemp = data.hourly_temp;
+        else if (Array.isArray(data.hourly)) {
             hourlyTemp = data.hourly.map(h => {
                 if (typeof h === 'number') return h;
                 if (typeof h.temp === 'number') return h.temp;
                 if (typeof h.temperature === 'number') return h.temperature;
                 return 5;
             });
-        } else if (Array.isArray(data)) {
-            hourlyTemp = data;
-        }
+        } else if (Array.isArray(data)) hourlyTemp = data;
 
-        if (!hourlyTemp || hourlyTemp.length === 0) {
-            throw new Error('Fișier invalid — nu găsesc array "hourly_temp"');
-        }
+        if (!hourlyTemp || hourlyTemp.length === 0) throw new Error('Fișier invalid — nu găsesc array "hourly_temp"');
 
         hourlyTemp = hourlyTemp.map(v => {
             const n = parseFloat(v);
@@ -242,7 +237,6 @@ weatherFileInput.addEventListener('change', async (e) => {
         };
 
         useRoomsFromFile = !!roomsSchedule;
-
         weatherMode = 'variable';
         applyWeatherModeUI();
         currentExtTemp = getExtTempAt(simulatedMinutes);
@@ -255,7 +249,6 @@ weatherFileInput.addEventListener('change', async (e) => {
         logEvent(`📂 Vreme încărcată: ${file.name} · ${hourlyTemp.length}h${roomsInfo} · ${minT.toFixed(1)}…${maxT.toFixed(1)}°C`, 'success');
 
         if (roomsSchedule) {
-            // Arată un preview al distribuției în camere
             const firstWorkingHour = roomsSchedule.find(r => r.some(p => p > 0));
             if (firstWorkingHour) {
                 logEvent(`🏢 Camere: ${roomsSchedule.length}h, prima oră cu persoane: [${firstWorkingHour.join(', ')}] (total ${firstWorkingHour.reduce((a,b)=>a+b,0)})`, 'info');
@@ -265,7 +258,6 @@ weatherFileInput.addEventListener('change', async (e) => {
         alert('Eroare la încărcarea fișierului:\n' + err.message);
         logEvent(`❌ Upload vreme eșuat: ${err.message}`, 'danger');
     }
-
     e.target.value = '';
 });
 
@@ -325,7 +317,6 @@ function generateBuilding() {
         floorDiv.className = 'floor-level';
         floorDiv.style.transform = `translateZ(${(i - 1) * floorHeight}px)`;
 
-        // 🆕 Camerele sunt acum în .face-top (tavan), nu în .face-base (podea)
         floorDiv.innerHTML = `
             <div class="face-base" id="base-f${i}"></div>
             <div class="face-top">
@@ -405,7 +396,7 @@ function generateBuilding() {
         });
 
         document.getElementById(`target-f${i}`).addEventListener('change', (e) => {
-            if (simModeSelect.value !== 'auto') {
+            if (simModeSelect.value !== 'auto' && !fireModeActive && !gasModeActive) {
                 floorsData[i - 1].targetTemp = getValidNumber(e.target, 22, 10, 35);
                 e.target.value = floorsData[i - 1].targetTemp;
                 if (selectedFloorIndex === i - 1) updateFloorDetailPanel(floorsData[i - 1]);
@@ -431,8 +422,9 @@ function generateBuilding() {
         });
     }
 }
+
 // ============================================================
-//  🆕 DISTRIBUȚIE PERSOANE ÎN CAMERE (cu update UI)
+//  DISTRIBUȚIE PERSOANE ÎN CAMERE
 // ============================================================
 function updateRoomUI(floor, roomIdx, count) {
     const bulb = document.getElementById(`bulb-f${floor.level}-r${roomIdx + 1}`);
@@ -441,7 +433,11 @@ function updateRoomUI(floor, roomIdx, count) {
 
     const occupied = count > 0;
 
-    if (bulb) bulb.classList.toggle('on', occupied);
+    if (bulb) {
+        bulb.classList.toggle('on', occupied);
+        // dacă suntem în gaz mode, becurile sunt stinse
+        if (gasModeActive || fireModeActive) bulb.classList.remove('on');
+    }
     if (roomEl) roomEl.classList.toggle('has-people', occupied);
 
     if (peopleEl) {
@@ -455,8 +451,14 @@ function updateRoomUI(floor, roomIdx, count) {
 }
 
 function distributePeopleToRooms(floor, areaMultiplier) {
-    // Doar ultimul etaj are camere
     if (floor.level !== floorsData.length) {
+        floor.lightingPower = 0;
+        return;
+    }
+
+    // La urgență: lumini stinse
+    if (fireModeActive || gasModeActive) {
+        floor.rooms.forEach((r, i) => updateRoomUI(floor, i, 0));
         floor.lightingPower = 0;
         return;
     }
@@ -473,13 +475,11 @@ function distributePeopleToRooms(floor, areaMultiplier) {
         return;
     }
 
-    // 🆕 Dacă avem rooms_schedule din fișier, îl folosim
     if (useRoomsFromFile && weatherData && weatherData.rooms_schedule && weatherData.rooms_schedule.length > 0) {
         const hoursTotal = weatherData.rooms_schedule.length;
         const hourIndex = Math.floor(simulatedMinutes / 60) % hoursTotal;
         const schedule = weatherData.rooms_schedule[hourIndex];
 
-        // Aplică pe camere (schedule-ul e deja scalat corect)
         floor.rooms.forEach((r, i) => {
             const count = schedule[i] || 0;
             r.people = count;
@@ -492,21 +492,17 @@ function distributePeopleToRooms(floor, areaMultiplier) {
         return;
     }
 
-    // 🆕 Fallback: 5-15 persoane per cameră ocupată, schimbare la 3 ore
     if (floor._lastRoomMove === undefined || simulatedMinutes - floor._lastRoomMove >= 180) {
         floor._lastRoomMove = simulatedMinutes;
 
-        // Reset
-        floor.rooms.forEach((r, i) => {
+        floor.rooms.forEach((r) => {
             r.people = 0;
             r.occupied = false;
         });
 
-        // Câte camere ocupate (1-4)
         const numOccupied = Math.max(1, Math.min(4, Math.ceil(totalPeople / 5)));
         const indices = [0, 1, 2, 3].sort(() => Math.random() - 0.5);
 
-        // Distribuie 5-15 per cameră (până epuizăm totalPeople)
         let peopleLeft = totalPeople;
         for (let i = 0; i < numOccupied && peopleLeft > 0; i++) {
             const idx = indices[i];
@@ -523,7 +519,6 @@ function distributePeopleToRooms(floor, areaMultiplier) {
         }
     }
 
-    // Update UI pentru toate camerele
     floor.rooms.forEach((r, i) => {
         updateRoomUI(floor, i, r.people);
     });
@@ -631,7 +626,7 @@ function deselectFloor() {
 function updateFloorDetailPanel(floor) {
     if (!floor) return;
 
-    const isFire = fireModeActive;
+    const isUrgency = fireModeActive || gasModeActive;
     const isAuto = simModeSelect.value === 'auto';
 
     document.getElementById('detail-temp').innerText = floor.currentTemp.toFixed(1) + '°C';
@@ -642,21 +637,22 @@ function updateFloorDetailPanel(floor) {
         'heating': '🔥 Încălzește',
         'cooling': '❄ Răcește',
         'maintaining': '✋ Menține',
-        'ventilating': '🌪 Ventilează'
+        'ventilating': '🌪 Ventilează',
+        'off': '⛔ Oprit (urgență)'
     };
     document.getElementById('detail-hvac').innerText = hvacLabels[floor.hvacState] || floor.hvacState;
 
     const targetSlider = document.getElementById('detail-target');
-    targetSlider.disabled = isFire || isAuto;
+    targetSlider.disabled = isUrgency || isAuto;
     targetSlider.value = floor.targetTemp;
     document.getElementById('detail-target-val').innerText = floor.targetTemp.toFixed(1);
 
     const occChk = document.getElementById('detail-occupied');
-    occChk.disabled = isFire || isAuto;
+    occChk.disabled = isUrgency || isAuto;
     occChk.checked = floor.hasPeople;
 
     const peopleSlider = document.getElementById('detail-people');
-    peopleSlider.disabled = isFire || isAuto || !floor.hasPeople;
+    peopleSlider.disabled = isUrgency || isAuto || !floor.hasPeople;
     peopleSlider.value = floor.peopleCount;
     document.getElementById('detail-people-val').innerText = floor.hasPeople ? floor.peopleCount : 0;
 }
@@ -668,10 +664,8 @@ function drawFloorGauge(power, maxPower) {
     const canvas = document.getElementById('floor-gauge-canvas');
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
-    const w = canvas.width;
-    const h = canvas.height;
-    const cx = w / 2;
-    const cy = h - 30;
+    const w = canvas.width, h = canvas.height;
+    const cx = w / 2, cy = h - 30;
     const radius = Math.min(w / 2, h) - 40;
 
     ctx.clearRect(0, 0, w, h);
@@ -709,9 +703,6 @@ function drawFloorGauge(power, maxPower) {
     ctx.fillText(`0 - ${maxPower.toFixed(0)} kW`, cx, cy + radius + 18);
 }
 
-// ============================================================
-//  ANIMAȚIE GAUGE
-// ============================================================
 function animateGauge() {
     if (selectedFloorIndex !== null && floorsData[selectedFloorIndex]) {
         const floor = floorsData[selectedFloorIndex];
@@ -845,11 +836,10 @@ function showConfirm({ title, body, okLabel = '✓ Confirmă', cancelLabel = 'An
 }
 
 // ============================================================
-//  SIMULARE
+//  SIMULARE — HVAC normal, dar cu fireMode / gasMode override
 // ============================================================
 function simulationTick() {
     if (!isRunning) return;
-    if (fireModeActive) return;
 
     const thermalLossCoeff = parseFloat(inputThermal.value);
     const areaMultiplier = getValidNumber(inputArea, 200, 50, 2000) / 100;
@@ -864,10 +854,14 @@ function simulationTick() {
         const extTemp = getExtTempAt(simulatedMinutes);
         currentExtTemp = extTemp;
 
-        if (simModeSelect.value === 'auto' && autoConfig.isApplied && simulatedMinutes % 5 === 0) {
+        // Auto optimizer — DOAR în mod normal (nu urgență)
+        if (!fireModeActive && !gasModeActive &&
+            simModeSelect.value === 'auto' && autoConfig.isApplied &&
+            simulatedMinutes % 5 === 0) {
             runAutoOptimizer();
         }
 
+        // Transfer termic (mereu rulează — clădirea pierde/primește căldură natural)
         const newTemps = floorsData.map(f => f.currentTemp);
 
         for (let i = 0; i < numFloors; i++) {
@@ -885,9 +879,11 @@ function simulationTick() {
 
         for (let i = 0; i < numFloors; i++) floorsData[i].currentTemp = newTemps[i];
 
+        // Procesare per etaj
         floorsData.forEach((floor) => {
             const currentOccupants = floor.hasPeople ? floor.peopleCount : 0;
 
+            // Metabolism (mereu — oamenii există chiar și la urgență)
             if (floor.hasPeople) {
                 floor.co2 += currentOccupants * 1.5;
                 floor.currentTemp += (currentOccupants * 0.0003) / thermalMass;
@@ -895,74 +891,113 @@ function simulationTick() {
                 floor.co2 -= 0.5;
             }
 
-            floor.exhaustActive = false;
+            let hvacPower = 0;
             let exhaustPower = 0;
             let ventTempDelta = 0;
 
-            const _isAuto = simModeSelect.value === 'auto' && autoConfig.isApplied;
-            const _allowExhaust = !_isAuto
-                || isWorkTime()
-                || (minutesUntilWork() <= autoConfig.preheatMinutes);
+            if (fireModeActive) {
+                // ============ MOD INCENDIU ============
+                // Totul oprit: HVAC, ventilație, exhaust, lumini
+                hvacPower = 0;
+                exhaustPower = 0;
+                floor.lightingPower = 0;
+                floor.exhaustActive = false;
+                floor.hvacState = 'off';
 
-            if (floor.co2 > 600 && _allowExhaust) {
+                // Aerisire pasivă minimă (uși deblocate)
+                floor.co2 -= 0.2;
+
+            } else if (gasModeActive) {
+                // ============ MOD GAZ ============
+                // Gaz oprit (HVAC=0), curent oprit (lumini=0),
+                // ventilatoare la maxim (UPS), geamuri deschise (aerisire forțată)
+
+                // Ventilator de urgență (alimentat din UPS): consum mic dar constant
+                exhaustPower = 0.3 * areaMultiplier;
+
+                // CO₂ scade rapid (ventilație forțată + geamuri)
+                floor.co2 -= 80;
+
+                // Aer proaspăt masiv → temperatura tinde spre cea exterioară
+                floor.currentTemp += (extTemp - floor.currentTemp) * 0.03;
+
+                floor.hvacState = 'ventilating';
                 floor.exhaustActive = true;
-                const extractionEffort = Math.min(120, (floor.co2 - 500) * 0.1);
-                floor.co2 -= extractionEffort;
-                exhaustPower = (extractionEffort / 100) * 1.2 * areaMultiplier;
-                ventTempDelta += (extTemp - floor.currentTemp) * (extractionEffort / 100) * 0.002;
+                floor.lightingPower = 0;
+
+            } else {
+                // ============ MOD NORMAL ============
+                const _isAuto = simModeSelect.value === 'auto' && autoConfig.isApplied;
+                const _allowExhaust = !_isAuto
+                    || isWorkTime()
+                    || (minutesUntilWork() <= autoConfig.preheatMinutes);
+
+                if (floor.co2 > 600 && _allowExhaust) {
+                    floor.exhaustActive = true;
+                    const extractionEffort = Math.min(120, (floor.co2 - 500) * 0.1);
+                    floor.co2 -= extractionEffort;
+                    exhaustPower = (extractionEffort / 100) * 1.2 * areaMultiplier;
+                    ventTempDelta += (extTemp - floor.currentTemp) * (extractionEffort / 100) * 0.002;
+                } else {
+                    floor.exhaustActive = false;
+                }
+
+                const diff = floor.targetTemp - floor.currentTemp;
+                const DEADBAND = 0.05;
+                const FULL_POWER_AT = 0.55;
+
+                let intensity = 0;
+                if (diff > DEADBAND) {
+                    intensity = Math.min(1, (diff - DEADBAND) / FULL_POWER_AT);
+                } else if (diff < -DEADBAND) {
+                    intensity = -Math.min(1, (-diff - DEADBAND) / FULL_POWER_AT);
+                }
+
+                if (floor.co2 > 1200 && Math.abs(intensity) < 0.3) {
+                    floor.hvacState = 'ventilating';
+                } else if (intensity > 0.005) {
+                    floor.hvacState = 'heating';
+                } else if (intensity < -0.005) {
+                    floor.hvacState = 'cooling';
+                } else {
+                    floor.hvacState = 'maintaining';
+                }
+
+                hvacPower = 0.1 * areaMultiplier;
+
+                if (intensity > 0) {
+                    floor.currentTemp += (0.15 * intensity) / thermalMass;
+                    hvacPower += 2.0 * areaMultiplier * intensity;
+                    floor.co2 -= 5 * intensity;
+                } else if (intensity < 0) {
+                    floor.currentTemp += (0.10 * intensity) / thermalMass;
+                    hvacPower += 2.5 * areaMultiplier * (-intensity);
+                    floor.co2 -= 5 * (-intensity);
+                } else if (floor.hvacState === 'ventilating') {
+                    hvacPower = 1.5 * areaMultiplier;
+                    floor.co2 -= 40;
+                    ventTempDelta += (extTemp - floor.currentTemp) * 0.01;
+                }
+
+                ventTempDelta = Math.max(-0.15, Math.min(0.15, ventTempDelta));
+                floor.currentTemp += ventTempDelta / thermalMass;
+
+                // Distribuție persoane în camere + calcul putere lumini
+                distributePeopleToRooms(floor, areaMultiplier);
             }
 
+            // Limite CO₂
             if (floor.co2 < CO2_FLOOR) floor.co2 = CO2_FLOOR;
             if (floor.co2 > CO2_CAP)   floor.co2 = CO2_CAP;
 
-            const diff = floor.targetTemp - floor.currentTemp;
-            const DEADBAND = 0.05;
-            const FULL_POWER_AT = 0.55;
-
-            let intensity = 0;
-            if (diff > DEADBAND) {
-                intensity = Math.min(1, (diff - DEADBAND) / FULL_POWER_AT);
-            } else if (diff < -DEADBAND) {
-                intensity = -Math.min(1, (-diff - DEADBAND) / FULL_POWER_AT);
-            }
-
-            if (floor.co2 > 1200 && Math.abs(intensity) < 0.3) {
-                floor.hvacState = 'ventilating';
-            } else if (intensity > 0.005) {
-                floor.hvacState = 'heating';
-            } else if (intensity < -0.005) {
-                floor.hvacState = 'cooling';
-            } else {
-                floor.hvacState = 'maintaining';
-            }
-
-            let hvacPower = 0.1 * areaMultiplier;
-
-            if (intensity > 0) {
-                floor.currentTemp += (0.15 * intensity) / thermalMass;
-                hvacPower += 2.0 * areaMultiplier * intensity;
-                floor.co2 -= 5 * intensity;
-            } else if (intensity < 0) {
-                floor.currentTemp += (0.10 * intensity) / thermalMass;
-                hvacPower += 2.5 * areaMultiplier * (-intensity);
-                floor.co2 -= 5 * (-intensity);
-            } else if (floor.hvacState === 'ventilating') {
-                hvacPower = 1.5 * areaMultiplier;
-                floor.co2 -= 40;
-                ventTempDelta += (extTemp - floor.currentTemp) * 0.01;
-            }
-
-            ventTempDelta = Math.max(-0.15, Math.min(0.15, ventTempDelta));
-            floor.currentTemp += ventTempDelta / thermalMass;
-
-            distributePeopleToRooms(floor, areaMultiplier);
-
+            // Putere totală etaj
             const totalFloorPower = hvacPower + exhaustPower + floor.lightingPower;
             floor.lastPower = totalFloorPower;
             powerSumForTick += totalFloorPower;
             tickEnergy += totalFloorPower;
 
-            if (floor._prevHvac !== floor.hvacState) {
+            // Log tranziții HVAC (doar în mod normal)
+            if (!fireModeActive && !gasModeActive && floor._prevHvac !== floor.hvacState) {
                 const labels = {
                     heating: 'Încălzire', cooling: 'Răcire',
                     maintaining: 'Menținere', ventilating: 'Ventilare'
@@ -979,17 +1014,21 @@ function simulationTick() {
                     logEvent(`Etaj ${floor.level}: ${labels[floor._prevHvac]} → ${labels[floor.hvacState]}`, 'info');
                     floor._lastHvacLogMinute = simulatedMinutes;
                 }
-
+                floor._prevHvac = floor.hvacState;
+            } else {
                 floor._prevHvac = floor.hvacState;
             }
 
+            // Log praguri CO₂
             const co2Level = floor.co2 > 1200 ? 2 : (floor.co2 > 1000 ? 1 : 0);
-            if (co2Level === 1 && floor._prevCo2Level === 0) {
-                logEvent(`Etaj ${floor.level}: CO2 > 1000 ppm`, 'warn');
-            } else if (co2Level === 2 && floor._prevCo2Level !== 2) {
-                logEvent(`Etaj ${floor.level}: CO2 critic > 1200 ppm`, 'danger');
-            } else if (co2Level === 0 && floor._prevCo2Level > 0) {
-                logEvent(`Etaj ${floor.level}: CO2 revenit la normal`, 'success');
+            if (!fireModeActive && !gasModeActive) {
+                if (co2Level === 1 && floor._prevCo2Level === 0) {
+                    logEvent(`Etaj ${floor.level}: CO2 > 1000 ppm`, 'warn');
+                } else if (co2Level === 2 && floor._prevCo2Level !== 2) {
+                    logEvent(`Etaj ${floor.level}: CO2 critic > 1200 ppm`, 'danger');
+                } else if (co2Level === 0 && floor._prevCo2Level > 0) {
+                    logEvent(`Etaj ${floor.level}: CO2 revenit la normal`, 'success');
+                }
             }
             floor._prevCo2Level = co2Level;
         });
@@ -1008,22 +1047,30 @@ function simulationTick() {
     floorsData.forEach((floor) => {
         document.getElementById(`curr-temp-f${floor.level}`).innerText = `${floor.currentTemp.toFixed(1)}°C`;
         document.getElementById(`power-f${floor.level}`).innerText = floor.lastPower.toFixed(2);
-        document.getElementById(`vent-air-f${floor.level}`).className = `vent-air ${floor.hvacState}`;
+        document.getElementById(`vent-air-f${floor.level}`).className = `vent-air ${floor.hvacState === 'off' ? 'off' : floor.hvacState}`;
 
         const co2El = document.getElementById(`co2-f${floor.level}`);
         document.getElementById(`co2-val-f${floor.level}`).innerText = Math.round(floor.co2);
         co2El.classList.toggle('warning', floor.co2 > 1000);
 
         const exhaustEl = document.getElementById(`exhaust-f${floor.level}`);
-        if (floor.exhaustActive) {
+        if (gasModeActive) {
+            // Ventilator forțat la maxim
+            exhaustEl.classList.add('active', 'forced');
+            exhaustEl.classList.remove('fast', 'off');
+        } else if (fireModeActive) {
+            exhaustEl.classList.add('off');
+            exhaustEl.classList.remove('active', 'fast', 'forced');
+        } else if (floor.exhaustActive) {
             exhaustEl.classList.add('active');
+            exhaustEl.classList.remove('forced', 'off');
             if (floor.hasPeople && floor.peopleCount > 15) {
                 exhaustEl.classList.add('fast');
             } else {
                 exhaustEl.classList.remove('fast');
             }
         } else {
-            exhaustEl.classList.remove('active', 'fast');
+            exhaustEl.classList.remove('active', 'fast', 'forced', 'off');
         }
     });
 
@@ -1031,7 +1078,7 @@ function simulationTick() {
         updateFloorDetailPanel(floorsData[selectedFloorIndex]);
     }
 
-    if (simModeSelect.value === 'auto' && autoConfig.isApplied) {
+    if (!fireModeActive && !gasModeActive && simModeSelect.value === 'auto' && autoConfig.isApplied) {
         syncAutoUI();
     }
 
@@ -1045,6 +1092,9 @@ function simulationTick() {
 //  APLICĂ SETĂRI
 // ============================================================
 document.getElementById('btn-apply-settings').addEventListener('click', () => {
+    if (fireModeActive) deactivateFireMode(true);
+    if (gasModeActive) deactivateGasMode(true);
+
     setRunning(false);
     btnStart.innerText = '▶ Start Simulare';
     btnStart.classList.remove('highlight');
@@ -1076,9 +1126,6 @@ document.getElementById('btn-apply-settings').addEventListener('click', () => {
     saveSettings();
 });
 
-// ============================================================
-//  TEMP INIȚIALĂ
-// ============================================================
 inputInitTemp.addEventListener('change', () => {
     if (simulatedMinutes === 0 && !isRunning) {
         generateBuilding();
@@ -1094,17 +1141,12 @@ inputInitTemp.addEventListener('change', () => {
 //  START / RESET
 // ============================================================
 btnStart.addEventListener('click', () => {
-    if (simModeSelect.value === 'auto' && !autoConfig.isApplied) {
+    if (simModeSelect.value === 'auto' && !autoConfig.isApplied && !fireModeActive && !gasModeActive) {
         alert('⚠️ Apasă mai întâi "Aplică Configurație" în panoul Auto!');
         return;
     }
     if (weatherMode === 'variable' && !weatherData) {
         alert('⚠️ Modul vreme variabilă activ dar nu ai încărcat niciun fișier!');
-        return;
-    }
-    if (fireModeActive) {
-        displayStatus.innerText = '🚨 Anulează incendiul întâi';
-        displayStatus.style.color = '#ff4757';
         return;
     }
     setRunning(!isRunning);
@@ -1116,7 +1158,8 @@ btnStart.addEventListener('click', () => {
 });
 
 document.getElementById('btn-reset').addEventListener('click', async () => {
-    if (fireModeActive) deactivateFireMode();
+    if (fireModeActive) deactivateFireMode(true);
+    if (gasModeActive) deactivateGasMode(true);
     deselectFloor();
     const MIN_MINUTES_TO_SAVE = 60;
 
@@ -1164,36 +1207,43 @@ document.getElementById('btn-reset').addEventListener('click', async () => {
 });
 
 // ============================================================
-//  MODUL INCENDIU
+//  MODUL INCENDIU (fără pauză, simularea continuă)
 // ============================================================
 async function activateFireMode() {
+    if (gasModeActive) {
+        const okSwitch = await showConfirm({
+            title: '⚠️ Alarmă gaz activă',
+            body: 'Momentan este activă <b style="color:#2ecc71">alarma de gaz</b>. Vrei să o anulezi și să declanșezi <b style="color:#ff4757">incendiul</b>?',
+            okLabel: '🚨 Anulează gaz + Incendiu',
+            cancelLabel: 'Nu'
+        });
+        if (!okSwitch) return;
+        deactivateGasMode(true);
+    }
+
     const ok = await showConfirm({
         title: '🚨 SIMULARE INCENDIU',
-        body: 'Această acțiune va:<br>• <b>OPRI</b> toate sistemele HVAC<br>• <b>TĂIA</b> ventilația<br>• <b>DEBLOCA</b> ușile pentru evacuare<br>• <b>ÎNTRERUPE</b> curentul pe toate nivelurile<br><br><span style="color:#ff9f43">Simularea va fi pusă pe pauză.</span>',
+        body: 'Această acțiune va:<br>' +
+              '• <b>OPRI</b> toate sistemele HVAC<br>' +
+              '• <b>TĂIA</b> ventilația (pentru a nu alimenta focul)<br>' +
+              '• <b>DEBLOCA</b> ușile pentru evacuare<br>' +
+              '• <b>ÎNTRERUPE</b> curentul pe toate nivelurile<br><br>' +
+              '<span style="color:#00ffcc">⏱ Simularea va continua să ruleze.</span>',
         okLabel: '🚨 Declanșează',
         cancelLabel: 'Anulează'
     });
     if (!ok) return;
 
     fireModeActive = true;
-    wasRunningBeforeFire = isRunning;
-    setRunning(false);
     deselectFloor();
 
-    if (selectedFloorIndex !== null && floorsData[selectedFloorIndex]) {
-        updateFloorDetailPanel(floorsData[selectedFloorIndex]);
-    }
-
-    btnStart.innerText = '▶ Start Simulare';
-    btnStart.classList.remove('highlight');
     displayStatus.innerText = '🚨 EVACUARE ACTIVĂ';
     displayStatus.style.color = '#ff4757';
-    displayInstantPower.innerText = '0.00 kW';
 
     btnFire.classList.add('active');
     btnFire.innerText = '🚨 INCENDIU ACTIV';
     fireBanner.classList.remove('hidden');
-    logEvent('🚨 SIMULARE INCENDIU ACTIVATĂ - Ventilație oprită, uși deblocate', 'danger');
+    logEvent('🚨 SIMULARE INCENDIU ACTIVATĂ - Ventilație oprită, uși deblocate, simulare continuă', 'danger');
 
     buildingContainer.classList.add('fire-mode');
     document.querySelectorAll('.floor-level').forEach(el => el.classList.add('fire-pulse'));
@@ -1204,43 +1254,117 @@ async function activateFireMode() {
     floorsData.forEach(floor => {
         floor.lastPower = 0;
         floor.lightingPower = 0;
+        floor.hvacState = 'off';
         const powerEl = document.getElementById(`power-f${floor.level}`);
         if (powerEl) powerEl.innerText = '0.00';
     });
 }
 
-function deactivateFireMode() {
+function deactivateFireMode(silent = false) {
     fireModeActive = false;
 
-    displayStatus.innerText = 'Pauză';
-    displayStatus.style.color = '#ff9f43';
+    if (!silent) {
+        displayStatus.innerText = isRunning ? 'Simulare Activă...' : 'Pauză';
+        displayStatus.style.color = isRunning ? '#00ffcc' : '#ff9f43';
+    }
 
     btnFire.classList.remove('active');
     btnFire.innerText = '🚨 INCENDIU';
     fireBanner.classList.add('hidden');
-    logEvent('Incendiu anulat - Sistemele revin la normal', 'success');
+    if (!silent) logEvent('Incendiu anulat - Sistemele revin la normal', 'success');
 
     buildingContainer.classList.remove('fire-mode');
     document.querySelectorAll('.floor-level').forEach(el => el.classList.remove('fire-pulse'));
     document.querySelectorAll('.vent-air').forEach(el => el.classList.remove('off'));
     document.querySelectorAll('.exhaust-fan').forEach(el => el.classList.remove('off'));
     document.querySelectorAll('.bulb').forEach(el => el.classList.remove('off'));
-
-    if (wasRunningBeforeFire) {
-        setRunning(true);
-        btnStart.innerText = '⏸ Pauză Simulare';
-        btnStart.classList.add('highlight');
-        displayStatus.innerText = 'Simulare Activă...';
-        displayStatus.style.color = '#00ffcc';
-    }
-    wasRunningBeforeFire = false;
 }
 
 btnFire.addEventListener('click', () => {
     if (fireModeActive) deactivateFireMode();
     else activateFireMode();
 });
-btnFireCancel.addEventListener('click', deactivateFireMode);
+btnFireCancel.addEventListener('click', () => deactivateFireMode());
+
+// ============================================================
+//  MODUL GAZ (fără pauză, simularea continuă)
+// ============================================================
+async function activateGasMode() {
+    if (fireModeActive) {
+        const okSwitch = await showConfirm({
+            title: '⚠️ Alarmă incendiu activă',
+            body: 'Momentan este activă <b style="color:#ff4757">alarma de incendiu</b>. Vrei să o anulezi și să declanșezi <b style="color:#2ecc71">alarma de gaz</b>?',
+            okLabel: '☣️ Anulează incendiu + Gaz',
+            cancelLabel: 'Nu'
+        });
+        if (!okSwitch) return;
+        deactivateFireMode(true);
+    }
+
+    const ok = await showConfirm({
+        title: '☣️ SIMULARE INTOXICAȚIE CU GAZ',
+        body: 'Această acțiune va:<br>' +
+              '• <b>OPRI</b> gazul (HVAC oprit)<br>' +
+              '• <b>ÎNTRERUPE</b> curentul (lumini, standby)<br>' +
+              '• <b>PORNI</b> ventilatoarele la maxim (UPS)<br>' +
+              '• <b>DESCHIDE</b> geamurile pentru aerisire<br><br>' +
+              '<span style="color:#00ffcc">⏱ Simularea va continua să ruleze.</span>',
+        okLabel: '☣️ Declanșează',
+        cancelLabel: 'Anulează'
+    });
+    if (!ok) return;
+
+    gasModeActive = true;
+    deselectFloor();
+
+    displayStatus.innerText = '☣️ INTOXICAȚIE GAZ - AERISIRE';
+    displayStatus.style.color = '#2ecc71';
+
+    btnGas.classList.add('active');
+    btnGas.innerText = '☣️ GAZ ACTIV';
+    gasBanner.classList.remove('hidden');
+    logEvent('☣️ SIMULARE INTOXICAȚIE GAZ - Gaz oprit, curent oprit, ventilatoare la maxim, geamuri deschise', 'danger');
+
+    buildingContainer.classList.add('gas-mode');
+    document.querySelectorAll('.floor-level').forEach(el => el.classList.add('gas-pulse'));
+    document.querySelectorAll('.bulb').forEach(el => el.classList.add('off'));
+
+    // Ventilatoare forțate la maxim
+    document.querySelectorAll('.exhaust-fan').forEach(el => {
+        el.classList.add('active', 'forced');
+    });
+
+    floorsData.forEach(floor => {
+        floor.lightingPower = 0;
+        floor.hvacState = 'ventilating';
+        floor.exhaustActive = true;
+    });
+}
+
+function deactivateGasMode(silent = false) {
+    gasModeActive = false;
+
+    if (!silent) {
+        displayStatus.innerText = isRunning ? 'Simulare Activă...' : 'Pauză';
+        displayStatus.style.color = isRunning ? '#00ffcc' : '#ff9f43';
+    }
+
+    btnGas.classList.remove('active');
+    btnGas.innerText = '☣️ GAZ';
+    gasBanner.classList.add('hidden');
+    if (!silent) logEvent('Alarmă gaz anulată - Sistemele revin la normal', 'success');
+
+    buildingContainer.classList.remove('gas-mode');
+    document.querySelectorAll('.floor-level').forEach(el => el.classList.remove('gas-pulse'));
+    document.querySelectorAll('.exhaust-fan').forEach(el => el.classList.remove('active', 'forced'));
+    document.querySelectorAll('.bulb').forEach(el => el.classList.remove('off'));
+}
+
+btnGas.addEventListener('click', () => {
+    if (gasModeActive) deactivateGasMode();
+    else activateGasMode();
+});
+btnGasCancel.addEventListener('click', () => deactivateGasMode());
 
 // ============================================================
 //  ISTORIC
@@ -1604,7 +1728,6 @@ function distributePeople() {
     floorsData.forEach(f => { f.hasPeople = false; f.peopleCount = 0; });
     if (total <= 0) return;
 
-    // 🆕 Dacă avem rooms_schedule, ultimul etaj e gestionat de fișier
     if (useRoomsFromFile) {
         const nWithoutLast = n - 1;
         if (nWithoutLast <= 0) return;
@@ -1615,7 +1738,6 @@ function distributePeople() {
             floorsData[i].peopleCount = perFloor + (i < rem ? 1 : 0);
             floorsData[i].hasPeople = floorsData[i].peopleCount > 0;
         }
-        // Ultimul etaj → schedule
         const last = floorsData[n - 1];
         const hoursTotal = weatherData.rooms_schedule.length;
         const hourIndex = Math.floor(simulatedMinutes / 60) % hoursTotal;
@@ -1688,6 +1810,7 @@ function computeComfortTarget(floor, floorIndex) {
 function runAutoOptimizer() {
     if (simModeSelect.value !== 'auto') return;
     if (!autoConfig.isApplied) return;
+    if (fireModeActive || gasModeActive) return;
 
     const inWork = isWorkTime();
     const minsToWork = minutesUntilWork();
@@ -1696,7 +1819,6 @@ function runAutoOptimizer() {
     if (inWork) {
         distributePeople();
     } else {
-        // Dacă avem fișier de camere, ultimul etaj păstrează schedule-ul
         if (useRoomsFromFile) {
             for (let i = 0; i < floorsData.length - 1; i++) {
                 floorsData[i].hasPeople = false;

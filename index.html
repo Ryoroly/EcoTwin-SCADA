@@ -22,6 +22,7 @@
             <button id="btn-reset" class="glass-btn danger">Reset & Pauză</button>
             <button id="btn-upload-weather" class="glass-btn weather-upload-btn" title="Încarcă vreme din fișier JSON">📂 Vreme</button>
             <button id="btn-fire" class="glass-btn fire-btn" title="Simulare Incendiu">🚨 INCENDIU</button>
+            <button id="btn-gas" class="glass-btn gas-btn" title="Simulare Intoxicație cu Gaz">☣️ GAZ</button>
             <input type="file" id="weather-file-input" accept=".json,application/json" style="display: none;">
         </div>
         <div class="global-stats">
@@ -33,17 +34,43 @@
         <section class="left-panel">
             <h2 class="panel-title">Monitorizare Clădire 3D</h2>
             <div class="building-with-weather">
-                <div id="building-wrapper">
-                    <div id="building-container"></div>
-                </div>
-                <div id="ext-weather-display" class="weather-display">
-                    <div class="weather-row">
-                        <span class="weather-icon">🌡️</span>
-                        <span class="weather-temp" id="weather-temp-value">5.0°C</span>
-                    </div>
-                    <div class="weather-source" id="weather-source-label">Fixă</div>
-                </div>
+    <div id="building-wrapper">
+        <div id="building-container"></div>
+    </div>
+    <div id="ext-weather-display" class="weather-display">
+        <div class="weather-row">
+            <span class="weather-icon">🌡️</span>
+            <span class="weather-temp" id="weather-temp-value">5.0°C</span>
+        </div>
+        <div class="weather-source" id="weather-source-label">Fixă</div>
+    </div>
+
+    <!-- 🆕 Scenă animație camion pompieri -->
+    <div id="fire-truck-scene" class="fire-truck-scene hidden">
+        <div class="road"></div>
+        <div class="fire-truck" id="fire-truck">
+            <div class="truck-cabin">
+                <div class="cabin-window"></div>
             </div>
+            <div class="truck-body">
+                <div class="truck-tank"></div>
+                <div class="truck-ladder"></div>
+            </div>
+            <div class="truck-wheels">
+                <div class="wheel"></div>
+                <div class="wheel"></div>
+            </div>
+            <div class="truck-girofar-group">
+                <div class="girofar girofar-red"></div>
+                <div class="girofar girofar-blue"></div>
+            </div>
+            <div class="truck-hose"></div>
+            <div class="water-stream">
+                <span></span><span></span><span></span><span></span><span></span>
+            </div>
+        </div>
+    </div>
+</div>
             <div class="event-log-panel glass-panel island">
                 <div class="event-log-header">
                     <h3>📋 Log Evenimente</h3>
@@ -232,14 +259,27 @@
         </section>
     </main>
 
+    <!-- Banner incendiu -->
     <div id="fire-banner" class="fire-banner hidden">
         <div class="fire-banner-content">
             <span class="fire-icon">🚨</span>
             <div class="fire-banner-text">
                 <h3>EVACUARE ACTIVĂ</h3>
-                <p>Ventilație oprită · Uși deblocate · Curent întrerupt</p>
+                <p>Ventilație oprită · Uși deblocate · Curent întrerupt · Simulare continuă</p>
             </div>
             <button id="btn-fire-cancel" class="glass-btn fire-cancel-btn">Anulează Incendiu</button>
+        </div>
+    </div>
+
+    <!-- Banner gaz -->
+    <div id="gas-banner" class="gas-banner hidden">
+        <div class="gas-banner-content">
+            <span class="gas-icon">☣️</span>
+            <div class="gas-banner-text">
+                <h3>INTOXICAȚIE CU GAZ</h3>
+                <p>Gaz oprit · Curent oprit · Ventilatoare la maxim · Geamuri deschise</p>
+            </div>
+            <button id="btn-gas-cancel" class="glass-btn gas-cancel-btn">Anulează Alarmă Gaz</button>
         </div>
     </div>
 

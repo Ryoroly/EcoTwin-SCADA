@@ -1,8 +1,6 @@
 * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; }
 
-:root {
-    --fh: 200px;
-}
+:root { --fh: 200px; }
 
 body { height: 100vh; display: flex; flex-direction: column; color: #fff; overflow: hidden; }
 .bg-gradient { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: linear-gradient(135deg, #0b111e 0%, #152b45 50%, #094048 100%); z-index: -1; }
@@ -17,7 +15,7 @@ body { height: 100vh; display: flex; flex-direction: column; color: #fff; overfl
 .glass-input { background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 6px; border-radius: 4px; width: 100%; }
 .glass-input option { background: #0d2743; }
 
-.time-controls { display: flex; gap: 15px; align-items: center; }
+.time-controls { display: flex; gap: 12px; align-items: center; }
 .speed-group { 
     display: flex; align-items: center; gap: 5px; 
     background: rgba(0, 0, 0, 0.4); border-radius: 8px; padding: 4px;
@@ -29,16 +27,13 @@ body { height: 100vh; display: flex; flex-direction: column; color: #fff; overfl
 #speed-display { font-weight: bold; color: #00ffcc; width: 85px; text-align: center; }
 
 .container { display: flex; flex: 1; padding: 20px; gap: 20px; min-height: 0; overflow: hidden; }
-
 .left-panel { flex: 1.4; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
 .panel-title { flex-shrink: 0; margin-bottom: 10px; }
-
 .right-panel { flex: 1; display: flex; flex-direction: column; overflow-y: auto; padding-right: 10px; min-height: 0; }
 .right-panel::-webkit-scrollbar { width: 6px; }
 .right-panel::-webkit-scrollbar-thumb { background: rgba(0, 255, 204, 0.4); border-radius: 4px; }
 .control-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
 
-/* === CLĂDIRE 3D === */
 #building-wrapper { 
     flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden;
     perspective: 3000px; display: flex; 
@@ -62,7 +57,7 @@ body { height: 100vh; display: flex; flex-direction: column; color: #fff; overfl
     background-color: rgba(255, 235, 150, 0.15);
     box-shadow: inset 0 0 80px rgba(255, 235, 100, 0.4), 0 0 50px rgba(255, 235, 100, 0.2);
 }
-.face-top { position: absolute; width: 100%; height: 100%; background: rgba(0, 150, 255, 0.05); border: 1px solid rgba(0, 255, 204, 0.2); transform: translateZ(var(--fh)); pointer-events: none; }
+.face-top { position: absolute; width: 100%; height: 100%; background: rgba(5, 15, 25, 0.85); border: 1px solid rgba(0, 255, 204, 0.2); transform: translateZ(var(--fh)); pointer-events: none; }
 
 .face-front { 
     position: absolute; bottom: 0; left: 0; width: 100%; height: var(--fh); 
@@ -81,7 +76,7 @@ body { height: 100vh; display: flex; flex-direction: column; color: #fff; overfl
     display: flex; align-items: center; justify-content: center; 
 }
 
-/* === CAMERE ETAJ SUPERIOR === */
+/* CAMERE ETAJ SUPERIOR */
 .rooms-layout {
     position: absolute;
     inset: 0;
@@ -106,12 +101,8 @@ body { height: 100vh; display: flex; flex-direction: column; color: #fff; overfl
     background: rgba(255, 235, 59, 0.12);
     border-color: rgba(255, 235, 59, 0.6);
 }
-
-/* Bec */
 .bulb {
-    width: 26px;
-    height: 26px;
-    border-radius: 50%;
+    width: 26px; height: 26px; border-radius: 50%;
     background: rgba(255, 255, 255, 0.08);
     border: 2px solid rgba(255, 255, 255, 0.25);
     transition: all 0.3s ease;
@@ -126,8 +117,7 @@ body { height: 100vh; display: flex; flex-direction: column; color: #fff; overfl
 .bulb.on::before {
     content: '';
     position: absolute;
-    inset: -8px;
-    border-radius: 50%;
+    inset: -8px; border-radius: 50%;
     background: radial-gradient(circle, rgba(255, 235, 59, 0.4) 0%, transparent 70%);
     pointer-events: none;
 }
@@ -135,31 +125,19 @@ body { height: 100vh; display: flex; flex-direction: column; color: #fff; overfl
     0%, 100% { box-shadow: 0 0 20px #ffeb3b, 0 0 40px rgba(255, 235, 59, 0.7); }
     50%      { box-shadow: 0 0 30px #ffeb3b, 0 0 60px rgba(255, 235, 59, 1); }
 }
-
-/* Badge număr persoane */
 .room-people {
-    position: absolute;
-    bottom: 6px;
-    right: 6px;
-    font-size: 11px;
-    font-weight: bold;
-    color: #fff;
+    position: absolute; bottom: 6px; right: 6px;
+    font-size: 11px; font-weight: bold; color: #fff;
     background: rgba(243, 156, 18, 0.9);
-    padding: 2px 7px;
-    border-radius: 10px;
-    opacity: 0;
-    transform: scale(0.8);
+    padding: 2px 7px; border-radius: 10px;
+    opacity: 0; transform: scale(0.8);
     transition: opacity 0.3s ease, transform 0.3s ease;
     pointer-events: none;
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
     white-space: nowrap;
 }
-.room-people.visible {
-    opacity: 1;
-    transform: scale(1);
-}
+.room-people.visible { opacity: 1; transform: scale(1); }
 
-/* Texte UI Etaj */
 .f-header { display: flex; justify-content: space-between; width: 100%; align-items: center; }
 .f-title { font-weight: 700; font-size: clamp(9px, calc(var(--fh) * 0.055), 18px); color: #00ffcc; text-transform: uppercase; }
 .f-co2 { font-size: clamp(8px, calc(var(--fh) * 0.045), 14px); background: rgba(0,0,0,0.5); padding: 2px 6px; border-radius: 4px; border: 1px solid #777; transition: all 0.3s; }
@@ -193,7 +171,7 @@ body { height: 100vh; display: flex; flex-direction: column; color: #fff; overfl
 .exhaust-fan.active.fast { animation: spinFan 0.3s linear infinite; }
 @keyframes spinFan { 100% { transform: rotate(360deg); } }
 
-/* === MODAL === */
+/* MODAL */
 .modal {
     position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
     background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(8px);
@@ -227,10 +205,17 @@ body { height: 100vh; display: flex; flex-direction: column; color: #fff; overfl
 .confirm-ok-btn:hover { background: rgba(0, 255, 204, 0.35); }
 @keyframes modalPop { from { transform: scale(0.92); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 
-.fire-btn { background: linear-gradient(135deg, rgba(255, 50, 50, 0.25), rgba(255, 100, 0, 0.25)); border: 2px solid #ff4757; font-weight: bold; text-shadow: 0 0 10px rgba(255, 71, 87, 0.8); padding: 10px 18px; }
+/* BUTON INCENDIU */
+.fire-btn { background: linear-gradient(135deg, rgba(255, 50, 50, 0.25), rgba(255, 100, 0, 0.25)); border: 2px solid #ff4757; font-weight: bold; text-shadow: 0 0 10px rgba(255, 71, 87, 0.8); padding: 10px 15px; }
 .fire-btn:hover { background: linear-gradient(135deg, rgba(255, 50, 50, 0.45), rgba(255, 100, 0, 0.45)); box-shadow: 0 0 20px rgba(255, 71, 87, 0.8); }
 .fire-btn.active { background: linear-gradient(135deg, #ff4757, #ff6347); animation: firePulse 1s ease-in-out infinite; }
 
+/* 🆕 BUTON GAZ */
+.gas-btn { background: linear-gradient(135deg, rgba(46, 204, 113, 0.25), rgba(39, 174, 96, 0.25)); border: 2px solid #2ecc71; font-weight: bold; text-shadow: 0 0 10px rgba(46, 204, 113, 0.8); padding: 10px 15px; }
+.gas-btn:hover { background: linear-gradient(135deg, rgba(46, 204, 113, 0.45), rgba(39, 174, 96, 0.45)); box-shadow: 0 0 20px rgba(46, 204, 113, 0.8); }
+.gas-btn.active { background: linear-gradient(135deg, #2ecc71, #27ae60); animation: gasPulse 1s ease-in-out infinite; }
+
+/* BANNER INCENDIU */
 .fire-banner { position: fixed; top: 85px; left: 50%; transform: translateX(-50%); z-index: 500; background: linear-gradient(135deg, rgba(220, 20, 60, 0.95), rgba(180, 0, 30, 0.95)); border: 2px solid #ff4757; border-radius: 8px; padding: 15px 25px; box-shadow: 0 0 40px rgba(255, 71, 87, 0.8), 0 8px 32px rgba(0,0,0,0.5); backdrop-filter: blur(10px); animation: firePulse 1.5s ease-in-out infinite; transition: opacity 0.3s ease; }
 .fire-banner.hidden { opacity: 0; pointer-events: none; }
 .fire-banner-content { display: flex; align-items: center; gap: 20px; }
@@ -240,20 +225,46 @@ body { height: 100vh; display: flex; flex-direction: column; color: #fff; overfl
 .fire-cancel-btn { background: rgba(255, 255, 255, 0.2); border: 1px solid #fff; color: #fff; font-weight: bold; white-space: nowrap; }
 .fire-cancel-btn:hover { background: rgba(255, 255, 255, 0.35); }
 
+/* 🆕 BANNER GAZ */
+.gas-banner { position: fixed; top: 85px; left: 50%; transform: translateX(-50%); z-index: 500; background: linear-gradient(135deg, rgba(39, 174, 96, 0.95), rgba(22, 160, 133, 0.95)); border: 2px solid #2ecc71; border-radius: 8px; padding: 15px 25px; box-shadow: 0 0 40px rgba(46, 204, 113, 0.8), 0 8px 32px rgba(0,0,0,0.5); backdrop-filter: blur(10px); animation: gasPulse 1.5s ease-in-out infinite; transition: opacity 0.3s ease; }
+.gas-banner.hidden { opacity: 0; pointer-events: none; }
+.gas-banner-content { display: flex; align-items: center; gap: 20px; }
+.gas-icon { font-size: 2.5rem; animation: gasShake 0.5s ease-in-out infinite; }
+.gas-banner-text h3 { color: #fff; font-size: 1.2rem; margin-bottom: 4px; letter-spacing: 2px; }
+.gas-banner-text p { color: #ccffdd; font-size: 0.85rem; }
+.gas-cancel-btn { background: rgba(255, 255, 255, 0.2); border: 1px solid #fff; color: #fff; font-weight: bold; white-space: nowrap; }
+.gas-cancel-btn:hover { background: rgba(255, 255, 255, 0.35); }
+
+/* ETajE ÎN FLĂCĂRI */
 .floor-level.fire-pulse .face-base { background-color: rgba(200, 30, 30, 0.3); background-image: linear-gradient(rgba(255, 80, 80, 0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 80, 80, 0.5) 1px, transparent 1px); border-color: #ff4757; animation: floorFireGlow 1s ease-in-out infinite alternate; }
 .floor-level.fire-pulse .face-front, .floor-level.fire-pulse .face-right { background: linear-gradient(180deg, rgba(100, 10, 10, 0.85) 0%, rgba(50, 5, 5, 0.95) 100%); border-color: #ff4757; border-top: 2px solid #ff4757; }
 .floor-level.fire-pulse .f-title, .floor-level.fire-pulse .f-temp { color: #ffb3b3; text-shadow: 0 0 10px rgba(255, 71, 87, 0.9); }
 
+/* 🆕 ETajE ÎN MOD GAZ */
+.floor-level.gas-pulse .face-base { background-color: rgba(30, 180, 90, 0.3); background-image: linear-gradient(rgba(80, 255, 140, 0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(80, 255, 140, 0.5) 1px, transparent 1px); border-color: #2ecc71; animation: floorGasGlow 1s ease-in-out infinite alternate; }
+.floor-level.gas-pulse .face-front, .floor-level.gas-pulse .face-right { background: linear-gradient(180deg, rgba(10, 80, 50, 0.85) 0%, rgba(5, 40, 25, 0.95) 100%); border-color: #2ecc71; border-top: 2px solid #2ecc71; }
+.floor-level.gas-pulse .f-title, .floor-level.gas-pulse .f-temp { color: #b3ffcc; text-shadow: 0 0 10px rgba(46, 204, 113, 0.9); }
+
+/* VENTILAȚIE OPRITĂ */
 .vent-air.off { opacity: 0; animation: none !important; }
 .exhaust-fan.off { border-color: #333; animation: none !important; box-shadow: none; }
 .bulb.off { background: rgba(255, 255, 255, 0.05) !important; border-color: rgba(255, 255, 255, 0.15) !important; box-shadow: none !important; animation: none !important; }
 
+/* Ventilator FORȚAT la maxim (gaz mode) - rotație rapidă, verde */
+.exhaust-fan.forced { border-color: #2ecc71; box-shadow: 0 0 15px rgba(46, 204, 113, 0.9), inset 0 0 8px rgba(46, 204, 113, 0.5); animation: spinFan 0.15s linear infinite; }
+
 .fire-mode .local-exhaust, .fire-mode .f-people input, .fire-mode .f-target input { opacity: 0.3; pointer-events: none; }
+.gas-mode .local-exhaust, .gas-mode .f-people input, .gas-mode .f-target input { opacity: 0.3; pointer-events: none; }
 
 @keyframes firePulse { 0%, 100% { box-shadow: 0 0 40px rgba(255, 71, 87, 0.6); } 50% { box-shadow: 0 0 60px rgba(255, 71, 87, 1); } }
 @keyframes fireShake { 0%, 100% { transform: rotate(-5deg); } 50% { transform: rotate(5deg); } }
 @keyframes floorFireGlow { from { box-shadow: inset 0 0 50px rgba(255, 50, 50, 0.4), 0 0 20px rgba(255, 50, 50, 0.4); } to { box-shadow: inset 0 0 80px rgba(255, 50, 50, 0.7), 0 0 40px rgba(255, 50, 50, 0.7); } }
 
+@keyframes gasPulse { 0%, 100% { box-shadow: 0 0 40px rgba(46, 204, 113, 0.6); } 50% { box-shadow: 0 0 60px rgba(46, 204, 113, 1); } }
+@keyframes gasShake { 0%, 100% { transform: rotate(-8deg); } 50% { transform: rotate(8deg); } }
+@keyframes floorGasGlow { from { box-shadow: inset 0 0 50px rgba(46, 204, 113, 0.4), 0 0 20px rgba(46, 204, 113, 0.4); } to { box-shadow: inset 0 0 80px rgba(46, 204, 113, 0.7), 0 0 40px rgba(46, 204, 113, 0.7); } }
+
+/* PANOU DETALII */
 .floor-panel-hidden { display: none; }
 .floor-detail-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
 #floor-detail-close { padding: 6px 12px; min-width: auto; border-color: rgba(255, 71, 87, 0.4); }
@@ -270,7 +281,9 @@ body { height: 100vh; display: flex; flex-direction: column; color: #fff; overfl
 
 .floor-level.selected .face-base { border-color: #00ffcc; border-width: 3px; box-shadow: inset 0 0 40px rgba(0, 255, 204, 0.5), 0 0 25px rgba(0, 255, 204, 0.8); }
 .floor-level.selected .face-front, .floor-level.selected .face-right { border-color: #00ffcc; border-top: 3px solid #00ffcc; box-shadow: 0 0 15px rgba(0, 255, 204, 0.5); }
+.floor-level.selected .face-top { border-color: #00ffcc; border-width: 2px; box-shadow: 0 0 25px rgba(0, 255, 204, 0.7); }
 
+/* GRAFIC */
 .chart-empty { padding: 30px; text-align: center; color: #666; font-style: italic; background: rgba(0,0,0,0.25); border: 1px dashed rgba(0,255,204,0.2); border-radius: 8px; font-size: 0.9rem; }
 #history-chart { width: 100%; height: 320px; display: block; background: rgba(0,0,0,0.25); border: 1px solid rgba(0,255,204,0.15); border-radius: 8px; }
 .chart-legend { display: flex; flex-wrap: wrap; gap: 15px; margin-top: 12px; font-size: 0.85rem; }
@@ -317,14 +330,258 @@ body { height: 100vh; display: flex; flex-direction: column; color: #fff; overfl
 .weather-source { font-size: 0.7rem; color: #888; text-align: center; margin-top: 4px; letter-spacing: 0.5px; }
 .weather-source.variable { color: #f39c12; font-weight: bold; }
 
-/* 🆕 Evidențiere tavan când etajul e selectat (pentru că acum camerele sunt pe tavan) */
-.floor-level.selected .face-top {
-    border-color: #00ffcc;
-    border-width: 2px;
-    box-shadow: 0 0 25px rgba(0, 255, 204, 0.7);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* ============================================================
+   ANIMAȚIE CAMION POMPIERI LA INCENDIU
+   ============================================================ */
+.fire-truck-scene {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 180px;
+    pointer-events: none;
+    z-index: 15;
+    overflow: hidden;
 }
 
-/* 🆕 Pe tavan, fundalul devine puțin mai opac ca să se vadă camerele mai bine */
-.face-top {
-    background: rgba(5, 15, 25, 0.85) !important;
+/* Drum */
+.road {
+    position: absolute;
+    bottom: 24px;
+    left: 0;
+    width: 100%;
+    height: 8px;
+    background: linear-gradient(90deg,
+        transparent 0%,
+        rgba(50, 50, 60, 0.55) 8%,
+        rgba(80, 80, 90, 0.7) 50%,
+        rgba(50, 50, 60, 0.55) 92%,
+        transparent 100%);
+    border-top: 1px dashed rgba(255, 255, 220, 0.35);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.6);
+}
+
+/* Camionul */
+.fire-truck {
+    position: absolute;
+    bottom: 26px;
+    left: -220px;
+    width: 140px;
+    height: 90px;
+    transition: left 5s cubic-bezier(0.35, 0.8, 0.4, 1);
+    z-index: 20;
+}
+
+.fire-truck.driving {
+    left: calc(50% - 240px);
+}
+
+.fire-truck.departing {
+    left: -220px;
+    transition: left 2.5s ease-in;
+}
+
+/* Cabină (dreapta, mai înaltă) */
+.truck-cabin {
+    position: absolute;
+    bottom: 15px;
+    right: 0;
+    width: 50px;
+    height: 65px;
+    background: linear-gradient(180deg, #ff3333 0%, #cc0000 100%);
+    border: 2px solid #990000;
+    border-radius: 6px 4px 2px 2px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.3);
+}
+
+.cabin-window {
+    position: absolute;
+    top: 8px;
+    left: 6px;
+    right: 6px;
+    height: 20px;
+    background: linear-gradient(180deg, rgba(180, 230, 255, 0.9), rgba(80, 150, 200, 0.9));
+    border-radius: 3px;
+    border: 1px solid rgba(255,255,255,0.4);
+}
+
+/* Corp (stânga, mai jos) */
+.truck-body {
+    position: absolute;
+    bottom: 15px;
+    left: 0;
+    width: 90px;
+    height: 48px;
+    background: linear-gradient(180deg, #ff3333 0%, #cc0000 100%);
+    border: 2px solid #990000;
+    border-radius: 4px 2px 2px 4px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.3);
+}
+
+.truck-tank {
+    position: absolute;
+    top: 6px;
+    left: 6px;
+    width: 50px;
+    height: 15px;
+    background: linear-gradient(180deg, #ffcccc, #ff9999);
+    border-radius: 2px;
+    border: 1px solid #cc0000;
+    box-shadow: inset 0 1px 2px rgba(255,255,255,0.5);
+}
+
+.truck-ladder {
+    position: absolute;
+    top: 26px;
+    left: 6px;
+    width: 70px;
+    height: 4px;
+    background: repeating-linear-gradient(90deg, #fff 0 6px, #ccc 6px 8px);
+    border-radius: 1px;
+    opacity: 0.7;
+}
+
+/* Roți */
+.truck-wheels {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 20px;
+    pointer-events: none;
+}
+
+.wheel {
+    position: absolute;
+    width: 18px;
+    height: 18px;
+    background: radial-gradient(circle, #555 30%, #111 70%);
+    border: 2px solid #000;
+    border-radius: 50%;
+    bottom: 0;
+    box-shadow: 0 2px 3px rgba(0,0,0,0.5);
+}
+
+.truck-wheels .wheel:first-child { left: 12px; }
+.truck-wheels .wheel:last-child { right: 12px; }
+
+/* Girofaruri */
+.truck-girofar-group {
+    position: absolute;
+    top: 6px;
+    right: 14px;
+    width: 34px;
+    height: 12px;
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    z-index: 3;
+}
+
+.girofar {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    border: 1.5px solid #222;
+}
+
+.girofar-red {
+    background: #ff0000;
+    box-shadow: 0 0 8px #ff0000, 0 0 16px #ff0000;
+    animation: giroFlash 0.5s ease-in-out infinite;
+}
+
+.girofar-blue {
+    background: #0088ff;
+    box-shadow: 0 0 8px #0088ff, 0 0 16px #0088ff;
+    animation: giroFlash 0.5s ease-in-out infinite;
+    animation-delay: 0.25s;
+}
+
+@keyframes giroFlash {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%      { opacity: 0.35; transform: scale(0.8); }
+}
+
+/* Furtun */
+.truck-hose {
+    position: absolute;
+    bottom: 38px;
+    left: 85px;
+    width: 0;
+    height: 5px;
+    background: linear-gradient(90deg, #ffaa00, #ff7700);
+    border-radius: 3px;
+    transition: width 0.8s cubic-bezier(0.4, 0, 0.3, 1);
+    transform-origin: left center;
+    transform: rotate(-20deg);
+    box-shadow: 0 0 6px rgba(255, 170, 0, 0.7);
+    z-index: 3;
+}
+
+.fire-truck.spraying .truck-hose {
+    width: 100px;
+}
+
+/* Jet de apă */
+.water-stream {
+    position: absolute;
+    bottom: 75px;
+    left: 180px;
+    width: 120px;
+    height: 100px;
+    opacity: 0;
+    transition: opacity 0.4s 0.6s;
+    pointer-events: none;
+    z-index: 2;
+}
+
+.fire-truck.spraying .water-stream {
+    opacity: 1;
+}
+
+.water-stream span {
+    position: absolute;
+    width: 6px;
+    height: 6px;
+    background: radial-gradient(circle, #ccffff 30%, #66ccff 70%);
+    border-radius: 50%;
+    box-shadow: 0 0 8px #66ccff;
+    bottom: 0;
+    left: 0;
+    animation: waterSpray 0.7s linear infinite;
+}
+
+.water-stream span:nth-child(1) { animation-delay: 0s; }
+.water-stream span:nth-child(2) { animation-delay: 0.14s; }
+.water-stream span:nth-child(3) { animation-delay: 0.28s; }
+.water-stream span:nth-child(4) { animation-delay: 0.42s; }
+.water-stream span:nth-child(5) { animation-delay: 0.56s; }
+
+@keyframes waterSpray {
+    0%   { transform: translate(0, 0) scale(1);       opacity: 1; }
+    70%  { opacity: 1; }
+    100% { transform: translate(80px, -100px) scale(0.3); opacity: 0; }
 }
